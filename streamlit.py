@@ -7,18 +7,22 @@ from datetime import datetime
 # Add the directory containing the original script to Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-# Import the necessary modules from the original script
-from swarm_med import (
-    client, 
-    history_agent, 
-    medical_history_agent, 
-    assessment_agent, 
-    treatment_agent, 
-    prescription_agent, 
-    summary_agent,
-    pdf_generation_agent,
-    generate_prescription_pdf
-)
+# Add better error handling for imports
+try:
+    from swarm_med import (
+        client, 
+        history_agent, 
+        medical_history_agent, 
+        assessment_agent, 
+        treatment_agent, 
+        prescription_agent, 
+        summary_agent,
+        pdf_generation_agent,
+        generate_prescription_pdf
+    )
+except ImportError as e:
+    st.error(f"Failed to import required modules from swarm_med: {e}")
+    st.stop()
 
 def agent_workflow_step(agent, context, system_msg, user_msg):
     """Execute an agent workflow step and capture its thought process."""
@@ -200,6 +204,9 @@ def handle_history_taking():
 def main():
     st.set_page_config(page_title="AI Medical Workflow Assistant", page_icon="🩺", layout="wide")
     
+    # Verify agents are properly loaded
+    verify_agents()
+    
     # Sidebar
     with st.sidebar:
         st.title("ℹ️ About AgenticMD")
@@ -262,10 +269,42 @@ def main():
                 # Initialize context if not exists
                 if "context" not in st.session_state:
                     st.session_state.context = {
-                        "patient_info": st.session_state.conversation_history[-1][1]
+                        "patient_info": st.session_state.conversation_history[-1][1],
+                        "follow_ups": ""
                     }
                 
-                handle_history_taking()
+                # Start history taking
+                history_response = agent_workflow_step(
+                    history_agent,
+                    st.session_state.context,
+                    "Collect patient history using OLDCARTS format. Ask only crucial missing information. If you have enough information for a basic assessment, proceed without further questions.",
+                    st.session_state.conversation_history[-1][1]
+                )
+                
+                # Check if the response contains crucial OLDCART elements
+                crucial_elements = ["onset", "location", "character", "severity"]
+                has_crucial_info = all(element.lower() in history_response.lower() for element in crucial_elements)
+                
+                if "?" in history_response and not has_crucial_info:
+                    st.session_state.conversation_history.append(("agent", history_response))
+                    # Show input for follow-up response
+                    with st.form("follow_up_form"):
+                        follow_up_response = st.text_area(
+                            "Please provide additional details:",
+                            height=100
+                        )
+                        if st.form_submit_button("Submit Additional Information"):
+                            # Add follow-up to context
+                            st.session_state.context["follow_ups"] += f"\n{follow_up_response}"
+                            st.session_state.conversation_history.append(("patient", follow_up_response))
+                            st.rerun()
+                else:
+                    # History taking complete, move to next step
+                    st.session_state.current_step = "medical_history"
+                    st.session_state.workflow_results = {'history': history_response}
+                    # Clear context for next step
+                    st.session_state.context = {}
+                    st.rerun()
             
             # Continue with remaining workflow steps
             elif st.session_state.workflow_results:
@@ -347,6 +386,33 @@ def complete_medical_workflow(initial_results):
     )
     
     return workflow_results, pdf_path
+
+def verify_agents():
+    """Verify that all required agents are properly loaded."""
+    try:
+        required_agents = [
+            history_agent,
+            medical_history_agent,
+            assessment_agent,
+            treatment_agent,
+            prescription_agent,
+            summary_agent,
+            pdf_generation_agent
+        ]
+        
+        for agent in required_agents:
+            if agent is None:
+                st.error(f"Failed to load required agent: {agent}")
+                st.stop()
+                
+        return True
+        
+    except NameError as e:
+        st.error(f"Required agent not defined: {e}")
+        st.stop()
+    except Exception as e:
+        st.error(f"Error verifying agents: {e}")
+        st.stop()
 
 if __name__ == "__main__":
     main()
