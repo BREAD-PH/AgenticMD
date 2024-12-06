@@ -3,10 +3,12 @@ from openai import OpenAI
 import os
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from datetime import datetime
+from reportlab.lib.enums import TA_LEFT, TA_CENTER
+from reportlab.lib.colors import black
 
 os.environ['OPENAI_API_KEY'] = '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'
 api = OpenAI(api_key="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")
@@ -325,9 +327,9 @@ summary_agent = Agent(
 )
 
 # Update PDF generation function
-def generate_prescription_pdf(treatment_plan, prescription, output_path="prescription.pdf"):
+def generate_prescription_pdf(doctor_info, patient_info, medications, output_path="prescription.pdf"):
     """Generate a professional medical prescription PDF."""
-    doc = SimpleDocTemplate(output_path, pagesize=letter)
+    doc = SimpleDocTemplate(output_path, pagesize=letter, topMargin=40, leftMargin=40, rightMargin=40)
     styles = getSampleStyleSheet()
     story = []
 
@@ -335,46 +337,108 @@ def generate_prescription_pdf(treatment_plan, prescription, output_path="prescri
     title_style = ParagraphStyle(
         'CustomTitle',
         parent=styles['Heading1'],
-        fontSize=16,
-        spaceAfter=30,
-        alignment=1  # Center alignment
+        fontSize=18,
+        spaceAfter=5,
+        alignment=1,  # Center alignment
+        leading=22
     )
     
-    header_style = ParagraphStyle(
-        'CustomHeader',
-        parent=styles['Heading2'],
+    subtitle_style = ParagraphStyle(
+        'CustomSubtitle',
+        parent=styles['Normal'],
+        fontSize=14,
+        spaceAfter=5,
+        alignment=1  # Center alignment
+    )
+
+    contact_style = ParagraphStyle(
+        'ContactInfo',
+        parent=styles['Normal'],
+        fontSize=11,
+        alignment=1,  # Center alignment
+        spaceAfter=20
+    )
+
+    info_style = ParagraphStyle(
+        'InfoStyle',
+        parent=styles['Normal'],
         fontSize=12,
-        spaceBefore=20,
+        spaceBefore=5,
+        spaceAfter=5
+    )
+
+    rx_style = ParagraphStyle(
+        'RxStyle',
+        parent=styles['Normal'],
+        fontSize=40,
+        leading=50,
+        spaceBefore=10,
         spaceAfter=10
     )
 
-    # Add hospital header
-    story.append(Paragraph("AgenticMD Medical Center", title_style))
-    story.append(Paragraph("123 Digital Health Street, Silicon Valley", styles['Normal']))
-    story.append(Paragraph("Tel: (555) 123-4567", styles['Normal']))
-    story.append(Spacer(1, 30))
+    med_style = ParagraphStyle(
+        'MedicationStyle',
+        parent=styles['Normal'],
+        fontSize=12,
+        leading=16,
+        spaceBefore=5,
+        spaceAfter=5
+    )
 
-    # Add date
-    current_date = datetime.now().strftime("%B %d, %Y")
-    story.append(Paragraph(f"Date: {current_date}", styles['Normal']))
+    # Add doctor header
+    story.append(Paragraph(doctor_info['name'], title_style))
+    story.append(Paragraph(doctor_info['title'], subtitle_style))
+    story.append(Paragraph(f"{doctor_info['address']}", contact_style))
+    story.append(Paragraph(f"{doctor_info['email']} | {doctor_info['phone']}", contact_style))
+
+    # Add horizontal line
+    story.append(HRFlowable(width="100%", thickness=1, color=black, spaceBefore=0, spaceAfter=10))
+
+    # Create a table for patient info
+    patient_data = [
+        [Paragraph("Name:", info_style), 
+         Paragraph(patient_info['name'], info_style), 
+         Paragraph("Age:", info_style), 
+         Paragraph(patient_info['age'], info_style)],
+        [Paragraph("Address:", info_style), 
+         Paragraph(patient_info['address'], info_style), 
+         Paragraph("Date:", info_style), 
+         Paragraph(patient_info['date'], info_style)]
+    ]
+    
+    patient_table = Table(patient_data, colWidths=[60, 250, 40, 100])
+    patient_table.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    story.append(patient_table)
     story.append(Spacer(1, 20))
 
-    # Add treatment plan
-    story.append(Paragraph("Treatment Plan", header_style))
-    story.append(Paragraph(treatment_plan, styles['Normal']))
-    story.append(Spacer(1, 20))
+    # Add Rx symbol
+    story.append(Paragraph("℞", rx_style))
 
-    # Add prescription
-    story.append(Paragraph("Prescription", header_style))
-    story.append(Paragraph(prescription, styles['Normal']))
-    story.append(Spacer(1, 30))
+    # Add medications
+    for med in medications:
+        story.append(Paragraph(f"{med['name']}", med_style))
+        story.append(Paragraph(f"#{med['quantity']}", med_style))
+        story.append(Paragraph(f"Sig. {med['instructions']}", med_style))
+        story.append(Spacer(1, 15))
 
-    # Add signature line
+    # Add signature section at the bottom
     story.append(Spacer(1, 40))
-    story.append(Paragraph("_" * 30, styles['Normal']))
-    story.append(Paragraph("Doctor's Signature", styles['Normal']))
-    story.append(Spacer(1, 20))
-    story.append(Paragraph("License No: XXXX", styles['Normal']))
+    signature_data = [
+        [Paragraph(doctor_info['signature_name'], info_style)],
+        [Paragraph(f"LIC NO: {doctor_info['license_no']}", info_style)],
+        [Paragraph(f"PTR: {doctor_info['ptr_no']}", info_style)],
+        [Paragraph("Signature", info_style)]
+    ]
+    
+    signature_table = Table(signature_data, colWidths=[200])
+    signature_table.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    story.append(signature_table)
 
     # Build PDF
     doc.build(story)
@@ -572,8 +636,34 @@ def medical_workflow(patient_conversation):
             
             # Generate the PDF
             pdf_path = generate_prescription_pdf(
-                workflow_state["treatment_plan"],
-                formatted_prescription,
+                {
+                    "name": "Dr. John Doe",
+                    "title": "MD",
+                    "address": "123 Main St, Anytown, USA",
+                    "email": "johndoe@example.com",
+                    "phone": "555-555-5555",
+                    "signature_name": "John Doe, MD",
+                    "license_no": "123456",
+                    "ptr_no": "789012"
+                },
+                {
+                    "name": "Jane Doe",
+                    "age": "30",
+                    "address": "456 Elm St, Anytown, USA",
+                    "date": "2023-02-20"
+                },
+                [
+                    {
+                        "name": "Acetaminophen",
+                        "quantity": "30",
+                        "instructions": "Take 1 tablet every 4-6 hours as needed for pain"
+                    },
+                    {
+                        "name": "Ibuprofen",
+                        "quantity": "20",
+                        "instructions": "Take 1 tablet every 4-6 hours as needed for pain"
+                    }
+                ],
                 output_path=f"prescriptions/prescription_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
             )
             
