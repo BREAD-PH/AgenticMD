@@ -523,12 +523,6 @@ def main():
         to virtual medical consultations.
         """)
         
-        # Add a centered image if it exists
-        try:
-            st.image("assets/agentic_md.png", use_column_width=True, caption="AgenticMD Interface")
-        except:
-            st.info("Interface preview image not available")
-        
         st.markdown("## 🤖 Our AI Agents")
         st.markdown("""
         AgenticMD utilizes a team of specialized AI agents, each with unique roles in the medical consultation process:
@@ -593,6 +587,20 @@ def main():
         AgenticMD is an AI assistant tool and should not replace professional medical advice. 
         Always consult with a qualified healthcare provider for medical decisions.
         """)
+        
+        # Framework Architecture Section
+        st.markdown("## 🔄 Framework Architecture")
+        st.markdown("""
+        The diagram below illustrates how our specialized AI agents work together in the AgenticMD framework 
+        to provide comprehensive medical consultations:
+        """)
+        
+        # Display framework diagram
+        framework_image = "assets/excalidraw.png"
+        try:
+            st.image(framework_image, use_column_width=True, caption="AgenticMD Framework Architecture")
+        except FileNotFoundError:
+            st.info("Framework diagram will be displayed here. Place the image at: assets/agentic_framework.png")
         
         # Footer
         st.markdown("---")
