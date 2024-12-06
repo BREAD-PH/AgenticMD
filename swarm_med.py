@@ -1,6 +1,12 @@
 from swarm import Agent, Swarm
 from openai import OpenAI
 import os
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from datetime import datetime
 
 
 client = Swarm(api)
@@ -27,6 +33,9 @@ def transfer_to_medication_agent():
 def transfer_to_prescription_agent():
     return prescription_agent
 
+def transfer_to_pdf_agent():
+    return pdf_generation_agent
+
 # Orchestrator Agent
 orchestrator_agent = Agent(
     name="Orchestrator Agent",
@@ -40,7 +49,8 @@ orchestrator_agent = Agent(
         transfer_to_assessment_agent,
         transfer_to_treatment_agent,
         transfer_to_medication_agent,
-        transfer_to_prescription_agent
+        transfer_to_prescription_agent,
+        transfer_to_pdf_agent
     ]
 )
 
@@ -270,6 +280,99 @@ prescription_agent = Agent(
     functions=[transfer_to_orchestrator]
 )
 
+def generate_prescription_pdf(treatment_plan, prescription, output_path="prescription.pdf"):
+    """Generate a professional medical prescription PDF."""
+    doc = SimpleDocTemplate(output_path, pagesize=letter)
+    styles = getSampleStyleSheet()
+    story = []
+
+    # Create custom styles
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=16,
+        spaceAfter=30,
+        alignment=1  # Center alignment
+    )
+    
+    header_style = ParagraphStyle(
+        'CustomHeader',
+        parent=styles['Heading2'],
+        fontSize=12,
+        spaceBefore=20,
+        spaceAfter=10
+    )
+
+    # Add hospital header
+    story.append(Paragraph("AgenticMD Medical Center", title_style))
+    story.append(Paragraph("123 Digital Health Street, Silicon Valley", styles['Normal']))
+    story.append(Paragraph("Tel: (555) 123-4567", styles['Normal']))
+    story.append(Spacer(1, 30))
+
+    # Add date
+    current_date = datetime.now().strftime("%B %d, %Y")
+    story.append(Paragraph(f"Date: {current_date}", styles['Normal']))
+    story.append(Spacer(1, 20))
+
+    # Add treatment plan
+    story.append(Paragraph("Treatment Plan", header_style))
+    story.append(Paragraph(treatment_plan, styles['Normal']))
+    story.append(Spacer(1, 20))
+
+    # Add prescription
+    story.append(Paragraph("Prescription", header_style))
+    story.append(Paragraph(prescription, styles['Normal']))
+    story.append(Spacer(1, 30))
+
+    # Add signature line
+    story.append(Spacer(1, 40))
+    story.append(Paragraph("_" * 30, styles['Normal']))
+    story.append(Paragraph("Doctor's Signature", styles['Normal']))
+    story.append(Spacer(1, 20))
+    story.append(Paragraph("License No: XXXX", styles['Normal']))
+
+    # Build PDF
+    doc.build(story)
+    return output_path
+
+# PDF Generation Agent
+pdf_generation_agent = Agent(
+    name="PDF Generation Agent",
+    instructions="""
+    R (Role):
+    You are a PDF Generation Agent, specialized in creating professional medical prescriptions and treatment plans in PDF format. Your purpose is to format and structure medical information into a clear, professional document.
+
+    I (Input):
+    You will receive:
+    1. Treatment plan
+    2. Prescription details
+    3. Patient information
+
+    C (Context):
+    You operate as the final step in the medical workflow, creating official documentation that will be:
+    1. Given to the patient
+    2. Stored in medical records
+    3. Used by pharmacists and other healthcare providers
+
+    C (Constraints):
+    1. Format: Follow standard medical document formatting
+    2. Completeness: Include all required prescription elements
+    3. Clarity: Ensure all text is clearly formatted and organized
+    4. Professional: Maintain medical document standards
+    5. Security: Include necessary security elements (e.g., signature, license number)
+
+    E (Evaluation):
+    Success criteria:
+    1. Professional appearance
+    2. All required elements included
+    3. Clear organization and structure
+    4. Proper formatting
+    5. Complete and accurate information
+    """,
+    model="gpt-4o-mini",
+    functions=[generate_prescription_pdf]
+)
+
 # Swarm Client Initialization
 client = Swarm()
 
@@ -282,7 +385,8 @@ def medical_workflow(patient_conversation):
         "medical_history_compiled": False,
         "assessment_done": False,
         "treatment_plan": None,
-        "prescription": None
+        "prescription": None,
+        "pdf_generated": False
     }
     
     context = {"patient_info": patient_conversation}
@@ -290,7 +394,7 @@ def medical_workflow(patient_conversation):
     print("--------------------------------")
     print(patient_conversation)
     
-    while not (workflow_state["treatment_plan"] and workflow_state["prescription"]):
+    while not (workflow_state["treatment_plan"] and workflow_state["prescription"] and workflow_state["pdf_generated"]):
         # Start with history taking if not done
         if not workflow_state["history_taken"]:
             print("\n👨‍⚕️ History Taking Agent")
@@ -378,13 +482,46 @@ def medical_workflow(patient_conversation):
             print("\nPrescription Details:")
             print(workflow_state["prescription"])
             
+        # Generate PDF if not done
+        if not workflow_state["pdf_generated"] and workflow_state["treatment_plan"] and workflow_state["prescription"]:
+            print("\n📄 PDF Generation Agent")
+            print("--------------------------------")
+            print("Creating prescription PDF...")
+            
+            pdf_messages = [
+                {
+                    "role": "system",
+                    "content": "Generate a professional medical prescription PDF"
+                },
+                {
+                    "role": "user",
+                    "content": f"Treatment Plan:\n{workflow_state['treatment_plan']}\n\nPrescription:\n{workflow_state['prescription']}"
+                }
+            ]
+            
+            response = client.run(
+                agent=pdf_generation_agent,
+                messages=pdf_messages
+            )
+            
+            # Generate the PDF
+            pdf_path = generate_prescription_pdf(
+                workflow_state["treatment_plan"],
+                workflow_state["prescription"],
+                output_path=f"prescriptions/prescription_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+            )
+            
+            workflow_state["pdf_generated"] = True
+            print(f"\nPDF Generated: {pdf_path}")
+            
     print("\n✅ Medical Workflow Complete")
     print("--------------------------------")
     
     # Return final results
     return {
         "treatment_plan": workflow_state["treatment_plan"],
-        "prescription": workflow_state["prescription"]
+        "prescription": workflow_state["prescription"],
+        "pdf_path": pdf_path if workflow_state["pdf_generated"] else None
     }
 
 # Example Usage
@@ -404,6 +541,9 @@ def main():
     print("\n💊 Prescription:")
     print("--------------------------------")
     print(results["prescription"])
+    print("\n📄 PDF Path:")
+    print("--------------------------------")
+    print(results["pdf_path"])
 
 if __name__ == "__main__":
     main()
