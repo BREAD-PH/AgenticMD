@@ -321,42 +321,45 @@ summary_agent = Agent(
     4. Professional medical terminology
 
     ONLY include the formatted prescription and how to take the medication, nothing else. Make this concise.
+    Output your response in a PLAIN TEXT FORMAT, that can be rendered thorugh SimpleDocTemplate.
     """,
     model="gpt-4o-mini",
     functions=[transfer_to_orchestrator]
 )
 
 # Update PDF generation function
-def generate_prescription_pdf(medications, output_path="prescription.pdf"):
-    """Generate a minimal prescription PDF with just medications and instructions."""
+def generate_prescription_pdf(prescription_text, output_path="prescription.pdf"):
+    """Generate a simple prescription PDF with header and raw text."""
     doc = SimpleDocTemplate(output_path, pagesize=letter, topMargin=40, leftMargin=40, rightMargin=40)
     styles = getSampleStyleSheet()
     story = []
 
-    # Simple style for all text
+    # Header style
+    header_style = ParagraphStyle(
+        'HeaderStyle',
+        parent=styles['Heading1'],
+        fontSize=16,
+        alignment=TA_CENTER,
+        spaceAfter=20
+    )
+
+    # Basic style for content
     basic_style = ParagraphStyle(
         'BasicStyle',
         parent=styles['Normal'],
         fontSize=12,
         spaceBefore=5,
-        spaceAfter=5,
-        leftIndent=20  # Add indentation for bullet points
+        spaceAfter=5
     )
 
-    # Rx symbol
-    story.append(Paragraph("℞", ParagraphStyle(
-        'RxStyle',
-        parent=styles['Normal'],
-        fontSize=24,
-        leading=30
-    )))
+    # Add header
+    story.append(Paragraph("PRESCRIPTION", header_style))
+    
+    # Add horizontal line after header
+    story.append(HRFlowable(width="100%", thickness=1, color=black, spaceBefore=10, spaceAfter=20))
 
-    # Medications in bullet point format
-    for med in medications:
-        story.append(Paragraph(f"• {med['name']}", basic_style))
-        story.append(Paragraph(f"  Quantity: {med['quantity']}", basic_style))
-        story.append(Paragraph(f"  Instructions: {med['instructions']}", basic_style))
-        story.append(Spacer(1, 10))
+    # Add the raw prescription text
+    story.append(Paragraph(prescription_text, basic_style))
 
     doc.build(story)
     return output_path
@@ -553,13 +556,7 @@ def medical_workflow(patient_conversation):
             
             # Generate the PDF
             pdf_path = generate_prescription_pdf(
-                medications=[
-                    {
-                        "name": "Medication Name",
-                        "quantity": "30",
-                        "instructions": "Take as directed"
-                    }
-                ],
+                prescription_text=formatted_prescription,
                 output_path=f"prescription_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
             )
             
