@@ -4,27 +4,21 @@ import json
 from langchain_openai import OpenAIEmbeddings, OpenAI
 from langchain.vectorstores import FAISS
 from langchain.document_loaders import PyPDFLoader
+from langchain.chains.question_answering import load_qa_chain
 from langchain.chains import RetrievalQA
-from langchain.chains.combine_documents import create_stuff_documents_chain
 from openai import OpenAI as OpenAIClient
 from swarm import Swarm, Agent
 
 # Load environment variables
 load_dotenv()
 
-# Hardcoded API keys (for development only)
-OPENAI_API_KEY = 'sk-3x6KqUMa4UwEhofqF3FPw7-kPNZKb5rOry9tqPi27s3iSWltisFjT3ew6k3aVfBD2pFXi_c-I5T3BlbkFJ4xpGj0hvajmGsGZI8KgZ_qQi4JnDHd0kvzCkRqe8AmManrrEz8U9MkT5kZ7GzVxusH9zLmmXwA'
-SWARM_API_KEY = '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'
 PDF_PATH = os.getenv("PDF_PATH", "Knowledge_Base/medication_list_edited_unstructured.pdf")
 
 # Set OpenAI API key in environment
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 
 # Initialize OpenAI client
-api = OpenAIClient(
-    api_key=OPENAI_API_KEY,
-    organization="org-AFCGWqgFYwJLnvmwDHfKDxO8"  # Add your organization if needed
-)
+api = OpenAIClient(api_key=OPENAI_API_KEY)
 
 SWARM_API_KEY = os.getenv("SWARM_API_KEY")
 if not SWARM_API_KEY:
@@ -32,25 +26,25 @@ if not SWARM_API_KEY:
 
 def setup_pdf_qa_system(pdf_path: str):
     """Sets up a QA system by processing a PDF document."""
-    try:
-        embeddings = OpenAIEmbeddings()
-        loader = PyPDFLoader(pdf_path)
-        documents = loader.load()
-        vectorstore = FAISS.from_documents(documents, embeddings)
-        llm = OpenAI()
-        combine_documents_chain = create_stuff_documents_chain(llm)
-        retrieval_chain = RetrievalQA(
-            retriever=vectorstore.as_retriever(),
-            combine_documents_chain=combine_documents_chain,
-        )
-        
-        def answer_query(query: str) -> str:
-            return retrieval_chain.invoke({"query": query})["result"]
+    print("Loading medication list...")
+    embeddings = OpenAIEmbeddings()
+    loader = PyPDFLoader(pdf_path)
+    documents = loader.load()
+    print("Creating vector store...")
+    vectorstore = FAISS.from_documents(documents, embeddings)
+    print("Initializing OpenAI model...")
+    llm = OpenAI()
+    print("Creating QA chain...")
+    combine_documents_chain = load_qa_chain(llm, chain_type="stuff")
+    retrieval_chain = RetrievalQA(
+        retriever=vectorstore.as_retriever(),
+        combine_documents_chain=combine_documents_chain,
+    )
+    
+    def answer_query(query: str) -> str:
+        return retrieval_chain.run(query)
 
-        return answer_query
-    except Exception as e:
-        print(f"Error in setup_pdf_qa_system: {e}")
-        return None
+    return answer_query
 
 def gather_history_with_OLDCART(agent, client):
     """Implements OLDCART data collection logic."""
@@ -110,37 +104,27 @@ def handoff_to_treatment_agent(client, assessment_output):
     response = client.run(agent=treatment_agent, messages=messages)
     return response.messages[-1]["content"]
 
-def handoff_to_prescription_agent(client, medication_agent, treatment_output, medication_list_agent_query=None):
-    """Handoff treatment recommendations to the Medication Agent."""
-    try:
-        medication_messages = [
-            {
-                "role": "system",
-                "content": (
-                    "You are a Philippine pharmacist specializing in medication recommendations. "
-                    "Based on the treatment recommendations, suggest appropriate medications that are "
-                    "commonly available in Philippine pharmacies. Include:\n"
-                    "1. Generic and brand names available in the Philippines\n"
-                    "2. Typical dosages\n"
-                    "3. Common side effects\n"
-                    "4. Contraindications\n"
-                    "5. Approximate price ranges in Philippine Pesos (PHP)\n"
-                    "Format your response clearly with sections for each medication."
-                )
-            },
-            {
-                "role": "user",
-                "content": f"Please suggest appropriate medications for the following treatment plan:\n{treatment_output}"
-            }
-        ]
-        
-        print("Debug: Sending to medication agent...")
-        response = client.run(agent=medication_agent, messages=medication_messages)
-        return response.messages[-1]["content"]
-        
-    except Exception as e:
-        print(f"Debug: Error in handoff_to_prescription_agent: {str(e)}")
-        raise
+def handoff_to_prescription_agent(client, medication_agent, treatment_output, medication_list_agent_query):
+    """Handoff treatment output to the Medication List Agent."""
+    rag_query_result = medication_list_agent_query(
+        f"Based on the following treatment recommendations, identify relevant medications, their "
+        f"dosages, common side effects, and contraindications:\n{treatment_output}"
+    )
+    medication_messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are the Medication List Agent. Use the retrieved data below to generate a "
+                "comprehensive medication list, including dosages, side effects, and contraindications."
+            )
+        },
+        {
+            "role": "user",
+            "content": rag_query_result
+        }
+    ]
+    response = client.run(agent=medication_agent, messages=medication_messages)
+    return response.messages[-1]["content"]
 
 def orchestrator_workflow(
     client: Swarm,

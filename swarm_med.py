@@ -2,8 +2,7 @@ from swarm import Agent, Swarm
 from openai import OpenAI
 import os
 
-os.environ['OPENAI_API_KEY'] = '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'
-api = OpenAI(api_key="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")
+
 client = Swarm(api)
 
 
@@ -100,12 +99,118 @@ prescription_agent = Agent(
 client = Swarm()
 
 def medical_workflow(patient_conversation):
-    # Start workflow with orchestrator agent
-    response = client.run(
-        agent=orchestrator_agent,
-        messages=[{"role": "user", "content": patient_conversation}]
-    )
-    return response
+    print("\n🏥 Starting Medical Workflow 🏥")
+    print("--------------------------------")
+    
+    workflow_state = {
+        "history_taken": False,
+        "medical_history_compiled": False,
+        "assessment_done": False,
+        "treatment_plan": None,
+        "prescription": None
+    }
+    
+    context = {"patient_info": patient_conversation}
+    print("\n📝 Initial Patient Information:")
+    print("--------------------------------")
+    print(patient_conversation)
+    
+    while not (workflow_state["treatment_plan"] and workflow_state["prescription"]):
+        # Start with history taking if not done
+        if not workflow_state["history_taken"]:
+            print("\n👨‍⚕️ History Taking Agent")
+            print("--------------------------------")
+            print("Collecting patient history using OLDCARTS format...")
+            response = client.run(
+                agent=history_agent,
+                messages=[
+                    {"role": "system", "content": "Collect patient history using OLDCARTS format"},
+                    {"role": "user", "content": context["patient_info"]}
+                ]
+            )
+            context["history"] = response.messages[-1]["content"]
+            workflow_state["history_taken"] = True
+            print("\nHistory Taking Results:")
+            print(context["history"])
+            continue
+            
+        # Compile medical history if not done
+        if not workflow_state["medical_history_compiled"]:
+            print("\n📋 Medical History Agent")
+            print("--------------------------------")
+            print("Compiling structured medical history...")
+            response = client.run(
+                agent=medical_history_agent,
+                messages=[
+                    {"role": "system", "content": "Compile a structured medical history"},
+                    {"role": "user", "content": context["history"]}
+                ]
+            )
+            context["medical_history"] = response.messages[-1]["content"]
+            workflow_state["medical_history_compiled"] = True
+            print("\nMedical History Compilation:")
+            print(context["medical_history"])
+            continue
+            
+        # Get assessment if not done
+        if not workflow_state["assessment_done"]:
+            print("\n🔍 Assessment Agent")
+            print("--------------------------------")
+            print("Performing comprehensive medical assessment...")
+            response = client.run(
+                agent=assessment_agent,
+                messages=[
+                    {"role": "system", "content": "Provide a comprehensive medical assessment"},
+                    {"role": "user", "content": f"Patient History: {context['history']}\nMedical History: {context['medical_history']}"}
+                ]
+            )
+            context["assessment"] = response.messages[-1]["content"]
+            workflow_state["assessment_done"] = True
+            print("\nMedical Assessment:")
+            print(context["assessment"])
+            continue
+            
+        # Get treatment plan if not done
+        if not workflow_state["treatment_plan"]:
+            print("\n💊 Treatment Agent")
+            print("--------------------------------")
+            print("Developing evidence-based treatment plan...")
+            response = client.run(
+                agent=treatment_agent,
+                messages=[
+                    {"role": "system", "content": "Provide evidence-based treatment recommendations"},
+                    {"role": "user", "content": f"Assessment: {context['assessment']}\nMedical History: {context['medical_history']}"}
+                ]
+            )
+            workflow_state["treatment_plan"] = response.messages[-1]["content"]
+            print("\nTreatment Plan:")
+            print(workflow_state["treatment_plan"])
+            continue
+            
+        # Get prescription if not done
+        if not workflow_state["prescription"]:
+            print("\n📜 Prescription Agent")
+            print("--------------------------------")
+            print("Generating detailed prescription...")
+            response = client.run(
+                agent=prescription_agent,
+                messages=[
+                    {"role": "system", "content": "Generate a detailed prescription based on the treatment plan"},
+                    {"role": "user", "content": f"Treatment Plan: {workflow_state['treatment_plan']}\nMedical History: {context['medical_history']}"}
+                ]
+            )
+            workflow_state["prescription"] = response.messages[-1]["content"]
+            print("\nPrescription Details:")
+            print(workflow_state["prescription"])
+            
+    print("\n✅ Medical Workflow Complete")
+    print("--------------------------------")
+    
+    # Return final results
+    return {
+        "treatment_plan": workflow_state["treatment_plan"],
+        "prescription": workflow_state["prescription"]
+    }
 
 # Example Usage
 def main():
@@ -115,8 +220,15 @@ def main():
     I've been feeling tired and have occasional dizziness.
     """
 
-    medical_report = medical_workflow(patient_conversation)
-    print(medical_report.messages[-1]["content"])
+    results = medical_workflow(patient_conversation)
+    print("\n🏁 Final Results Summary")
+    print("================================")
+    print("\n📋 Treatment Plan:")
+    print("--------------------------------")
+    print(results["treatment_plan"])
+    print("\n💊 Prescription:")
+    print("--------------------------------")
+    print(results["prescription"])
 
 if __name__ == "__main__":
     main()
