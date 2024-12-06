@@ -5,7 +5,6 @@ from swarm import Agent, Swarm
 from openai import OpenAI
 import tempfile
 from datetime import datetime
-# from openai import OpenAI as OpenAIClient
 
 # Add the directory containing the original script to Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -20,16 +19,7 @@ def initialize_clients(api_key):
 # Add better error handling for imports
 try:
     from swarm_med import (
-        client, 
-        history_agent, 
-        medical_history_agent, 
-        assessment_agent, 
-        treatment_agent, 
-        prescription_agent, 
-        summary_agent,
-        pdf_generation_agent,
         generate_prescription_pdf,
-        Swarm
     )
 except ImportError as e:
     st.error(f"Failed to import required modules from swarm_med: {e}")
@@ -39,10 +29,15 @@ def agent_workflow_step(agent, context, system_msg, user_msg):
     """Execute an agent workflow step and capture its thought process."""
     with st.expander(f"{agent.name} Processing"):
         try:
+            # Use the client from session state
+            if not st.session_state.swarm_client:
+                st.error("API client not initialized. Please check your API key.")
+                st.stop()
+                
             # Combine original message with any follow-up responses
             full_context = context.get("patient_info", "") + "\n" + context.get("follow_ups", "")
             
-            response = client.run(
+            response = st.session_state.swarm_client.run(
                 agent=agent,
                 messages=[
                     {"role": "system", "content": system_msg},
@@ -61,75 +56,75 @@ def agent_workflow_step(agent, context, system_msg, user_msg):
             st.error(f"Error in {agent.name}: {e}")
             return None
 
-def medical_workflow_streamlit(patient_conversation):
-    """Streamlit-compatible medical workflow function."""
-    st.write("🏥 Starting Medical Workflow")
-    
-    context = {"patient_info": patient_conversation}
-    workflow_results = {}
-    
-    # History Taking
-    st.header("📋 History Taking")
-    workflow_results['history'] = agent_workflow_step(
-        history_agent, 
-        context, 
-        "Collect patient history using OLDCARTS format", 
-        context["patient_info"]
+def initialize_agents(client):
+    """Initialize all agents with the provided client"""
+    global history_agent, medical_history_agent, assessment_agent, treatment_agent
+    global prescription_agent, summary_agent, pdf_generation_agent
+
+    # Initialize agents with the session state client
+    if not client:
+        st.error("Client not initialized. Please check your API key.")
+        st.stop()
+
+    # Create agents with the correct initialization format
+    history_agent = Agent(
+        name="History Taking Agent",
+        instructions="Collect patient history using OLDCARTS format",
+        model="gpt-4o-mini",
+        client=client
     )
     
-    # Medical History Compilation
-    st.header("🔍 Medical History Compilation")
-    workflow_results['medical_history'] = agent_workflow_step(
-        medical_history_agent, 
-        context, 
-        "Compile a structured medical history", 
-        workflow_results['history']
+    medical_history_agent = Agent(
+        name="Medical History Agent",
+        instructions="Compile a structured medical history",
+        model="gpt-4o-mini",
+        client=client
     )
     
-    # Assessment
-    st.header("📊 Medical Assessment")
-    workflow_results['assessment'] = agent_workflow_step(
-        assessment_agent, 
-        context, 
-        "Provide a comprehensive medical assessment", 
-        f"Patient History: {workflow_results['history']}\nMedical History: {workflow_results['medical_history']}"
+    assessment_agent = Agent(
+        name="Assessment Agent",
+        instructions="Provide a comprehensive medical assessment",
+        model="gpt-4o-mini",
+        client=client
     )
     
-    # Treatment Plan
-    st.header("💊 Treatment Plan")
-    workflow_results['treatment_plan'] = agent_workflow_step(
-        treatment_agent, 
-        context, 
-        "Provide evidence-based treatment recommendations", 
-        f"Assessment: {workflow_results['assessment']}\nMedical History: {workflow_results['medical_history']}"
+    treatment_agent = Agent(
+        name="Treatment Agent",
+        instructions="Provide evidence-based treatment recommendations",
+        model="gpt-4o-mini",
+        client=client
     )
     
-    # Prescription
-    st.header("📜 Prescription Generation")
-    workflow_results['prescription'] = agent_workflow_step(
-        prescription_agent, 
-        context, 
-        "Generate a detailed prescription based on the treatment plan", 
-        f"Treatment Plan: {workflow_results['treatment_plan']}\nMedical History: {workflow_results['medical_history']}"
+    prescription_agent = Agent(
+        name="Prescription Agent",
+        instructions="Generate a detailed prescription based on the treatment plan",
+        model="gpt-4o-mini",
+        client=client
     )
     
-    # Summary and PDF Generation
-    st.header("📄 Prescription PDF")
-    formatted_prescription = agent_workflow_step(
-        summary_agent, 
-        context, 
-        "Format the prescription in standard Rx format", 
-        f"Treatment Plan:\n{workflow_results['treatment_plan']}\n\nPrescription:\n{workflow_results['prescription']}"
+    summary_agent = Agent(
+        name="Summary Agent",
+        instructions="Format the prescription in standard Rx format",
+        model="gpt-4o-mini",
+        client=client
     )
     
-    # Generate PDF
-    
-    pdf_path = generate_prescription_pdf(
-        prescription_text=formatted_prescription,
-        output_path=f"prescriptions/prescription_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+    pdf_generation_agent = Agent(
+        name="PDF Generation Agent",
+        instructions="Generate a properly formatted prescription PDF",
+        model="gpt-4o-mini",
+        client=client
     )
-    
-    return workflow_results, pdf_path
+
+    return {
+        'history': history_agent,
+        'medical_history': medical_history_agent,
+        'assessment': assessment_agent,
+        'treatment': treatment_agent,
+        'prescription': prescription_agent,
+        'summary': summary_agent,
+        'pdf': pdf_generation_agent
+    }
 
 def get_missing_oldcart_elements(history_response):
     """Check which crucial OLDCART elements are missing from the response."""
@@ -212,69 +207,16 @@ def handle_history_taking():
         st.session_state.workflow_results = {'history': final_history}
         st.rerun()
 
-def initialize_agents(client):
-    """Initialize all agents with the Swarm client"""
-    global history_agent, medical_history_agent, assessment_agent, treatment_agent, prescription_agent, summary_agent
-    
-    # Reinitialize each agent with the new client
-    history_agent = Agent(
-        name="History Taking Agent",
-        instructions="...",  # Your existing instructions
-        model="gpt-4o-mini",
-        client=client
-    )
-    
-    medical_history_agent = Agent(
-        name="Medical History Agent",
-        instructions="...",  # Your existing instructions
-        model="gpt-4o-mini",
-        client=client
-    )
-    
-    assessment_agent = Agent(
-        name="Assessment Agent",
-        instructions="...",  # Your existing instructions
-        model="gpt-4o-mini",
-        client=client
-    )
-    
-    treatment_agent = Agent(
-        name="Treatment Agent",
-        instructions="...",  # Your existing instructions
-        model="gpt-4o-mini",
-        client=client
-    )
-    
-    prescription_agent = Agent(
-        name="Prescription Agent",
-        instructions="...",  # Your existing instructions
-        model="gpt-4o-mini",
-        client=client
-    )
-    
-    summary_agent = Agent(
-        name="Summary Agent",
-        instructions="...",  # Your existing instructions
-        model="gpt-4o-mini",
-        client=client
-    )
-
-def initialize_clients(api_key):
-    """Initialize OpenAI and Swarm clients with API key"""
-    os.environ['OPENAI_API_KEY'] = api_key
-    api = OpenAI(api_key=api_key)
-    client = Swarm(api)
-    # Initialize agents with the new client
-    initialize_agents(client)
-    return api, client
-
 def main():
     st.set_page_config(page_title="AI Medical Workflow Assistant", page_icon="🩺", layout="wide")
     
-    # Initialize session state for API clients
-    if 'openai_api' not in st.session_state or 'swarm_client' not in st.session_state:
+    # Initialize session state for API clients and agents
+    if 'openai_api' not in st.session_state:
         st.session_state.openai_api = None
+    if 'swarm_client' not in st.session_state:
         st.session_state.swarm_client = None
+    if 'agents' not in st.session_state:
+        st.session_state.agents = None
     
     # Sidebar
     with st.sidebar:
@@ -302,6 +244,8 @@ def main():
                 api, client = initialize_clients(api_key)
                 st.session_state.openai_api = api
                 st.session_state.swarm_client = client
+                # Initialize agents with the new client
+                st.session_state.agents = initialize_agents(client)
                 st.sidebar.success("API key successfully configured!")
             except Exception as e:
                 st.sidebar.error(f"Error initializing with API key: {str(e)}")
@@ -499,7 +443,7 @@ def complete_medical_workflow(initial_results):
     
     # Medical History Compilation
     workflow_results['medical_history'] = agent_workflow_step(
-        medical_history_agent,
+        st.session_state.agents['medical_history'],
         {"history": workflow_results['history']},
         "Compile a structured medical history",
         workflow_results['history']
@@ -507,7 +451,7 @@ def complete_medical_workflow(initial_results):
     
     # Assessment
     workflow_results['assessment'] = agent_workflow_step(
-        assessment_agent,
+        st.session_state.agents['assessment'],
         {"history": workflow_results['history'], "medical_history": workflow_results['medical_history']},
         "Provide a comprehensive medical assessment",
         f"Patient History: {workflow_results['history']}\nMedical History: {workflow_results['medical_history']}"
@@ -515,7 +459,7 @@ def complete_medical_workflow(initial_results):
     
     # Treatment Plan
     workflow_results['treatment_plan'] = agent_workflow_step(
-        treatment_agent,
+        st.session_state.agents['treatment'],
         {"assessment": workflow_results['assessment'], "medical_history": workflow_results['medical_history']},
         "Provide evidence-based treatment recommendations",
         f"Assessment: {workflow_results['assessment']}\nMedical History: {workflow_results['medical_history']}"
@@ -523,7 +467,7 @@ def complete_medical_workflow(initial_results):
     
     # Prescription
     workflow_results['prescription'] = agent_workflow_step(
-        prescription_agent,
+        st.session_state.agents['prescription'],
         {"treatment_plan": workflow_results['treatment_plan'], "medical_history": workflow_results['medical_history']},
         "Generate a detailed prescription based on the treatment plan",
         f"Treatment Plan: {workflow_results['treatment_plan']}\nMedical History: {workflow_results['medical_history']}"
@@ -531,7 +475,7 @@ def complete_medical_workflow(initial_results):
     
     # Format prescription for PDF
     formatted_prescription = agent_workflow_step(
-        summary_agent,
+        st.session_state.agents['summary'],
         {"treatment_plan": workflow_results['treatment_plan'], "prescription": workflow_results['prescription']},
         "Format the prescription in standard Rx format",
         f"Treatment Plan: {workflow_results['treatment_plan']}\nPrescription: {workflow_results['prescription']}"
@@ -549,13 +493,13 @@ def verify_agents():
     """Verify that all required agents are properly loaded."""
     try:
         required_agents = [
-            history_agent,
-            medical_history_agent,
-            assessment_agent,
-            treatment_agent,
-            prescription_agent,
-            summary_agent,
-            pdf_generation_agent
+            st.session_state.agents['history'],
+            st.session_state.agents['medical_history'],
+            st.session_state.agents['assessment'],
+            st.session_state.agents['treatment'],
+            st.session_state.agents['prescription'],
+            st.session_state.agents['summary'],
+            st.session_state.agents['pdf']
         ]
         
         for agent in required_agents:
