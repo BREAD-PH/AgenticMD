@@ -208,34 +208,74 @@ def handle_history_taking():
         st.rerun()
 
 def main():
-    st.set_page_config(page_title="AI Medical Workflow Assistant", page_icon="🩺", layout="wide")
+    # Configure the page with a medical theme
+    st.set_page_config(
+        page_title="AgenticMD - AI Medical Assistant",
+        page_icon="🏥",
+        layout="wide",
+        initial_sidebar_state="expanded"
+    )
+
+    # Add custom CSS for medical theme
+    st.markdown("""
+        <style>
+        .main {
+            background-color: #f8f9fa;
+        }
+        .stButton>button {
+            background-color: #3498db;
+            color: white;
+            border-radius: 20px;
+            padding: 0.5rem 2rem;
+        }
+        .stTextInput>div>div>input {
+            border-radius: 10px;
+        }
+        .stTextArea>div>div>textarea {
+            border-radius: 10px;
+        }
+        .css-1d391kg {
+            padding: 2rem 1rem;
+        }
+        .stAlert {
+            border-radius: 10px;
+        }
+        </style>
+        """, unsafe_allow_html=True)
     
-    # Initialize session state for API clients and agents
-    if 'openai_api' not in st.session_state:
-        st.session_state.openai_api = None
-    if 'swarm_client' not in st.session_state:
-        st.session_state.swarm_client = None
-    if 'agents' not in st.session_state:
-        st.session_state.agents = None
-    
-    # Sidebar
+    # Sidebar with improved styling
     with st.sidebar:
-        st.title("ℹ️ About AgenticMD")
-        st.write("""
-        AgenticMD is an AI-powered medical assistant that helps:
-        - Take patient history
-        - Assess symptoms
-        - Generate treatment plans
-        - Create prescriptions
-        """)
+        st.image("https://img.icons8.com/color/96/000000/caduceus.png", width=100)
+        st.title("🏥 AgenticMD")
+        st.markdown("---")
+        st.markdown("""
+        <div style='text-align: center; color: #2c3e50;'>
+            <h3>Your AI Medical Assistant</h3>
+        </div>
+        """, unsafe_allow_html=True)
         
-        st.divider()
-        # API Key input in sidebar
+        st.markdown("""
+        <div style='background-color: #eaf2f8; padding: 15px; border-radius: 10px; margin: 10px 0;'>
+            <h4 style='color: #2980b9;'>Features:</h4>
+            <ul style='color: #34495e;'>
+                <li>📋 Comprehensive Patient History</li>
+                <li>🔍 Symptom Assessment</li>
+                <li>💊 Treatment Planning</li>
+                <li>📝 Prescription Generation</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("---")
+        
+        # API Key input with improved styling
+        st.markdown("<h4 style='color: #2c3e50;'>Authentication</h4>", unsafe_allow_html=True)
         api_key = st.text_input(
-            "Enter OpenAI API Key",
+            "OpenAI API Key",
             type="password",
             help="Required for accessing the AI medical assistant",
-            key="openai_api_key_input"
+            key="openai_api_key_input",
+            placeholder="Enter your API key here..."
         )
         
         if api_key:
@@ -246,15 +286,21 @@ def main():
                 st.session_state.swarm_client = client
                 # Initialize agents with the new client
                 st.session_state.agents = initialize_agents(client)
-                st.sidebar.success("API key successfully configured!")
+                st.sidebar.success("✅ API key configured successfully!")
             except Exception as e:
-                st.sidebar.error(f"Error initializing with API key: {str(e)}")
+                st.sidebar.error(f"❌ Error: {str(e)}")
                 st.stop()
         else:
-            st.sidebar.warning("Please enter your OpenAI API key to continue.")
+            st.sidebar.warning("⚠️ Please enter your API key to continue")
             st.stop()
 
-    st.title("🩺 AgenticMD")
+    # Main content area with medical styling
+    st.markdown("""
+        <div style='text-align: center; padding: 20px;'>
+            <h1 style='color: #2c3e50;'>🏥 Agentic MD: Your AI Doctor</h1>
+            <p style='color: #7f8c8d;'>Powered by Bread AI</p>
+        </div>
+    """, unsafe_allow_html=True)
     
     # Initialize session state for conversation history
     if 'conversation_history' not in st.session_state:
@@ -263,67 +309,74 @@ def main():
         st.session_state.current_step = None
         st.session_state.workflow_results = None
     
-    # Initial input form with structured questions
+    # Initial input form with medical styling
     if not st.session_state.workflow_started:
         if not st.session_state.openai_api:
-            st.error("Please enter your OpenAI API key in the sidebar to continue.")
+            st.error("🔐 Please enter your OpenAI API key in the sidebar to continue.")
         else:
-            # Create a single form that contains all inputs
+            st.markdown("""
+                <div style='background-color: #eaf2f8; padding: 20px; border-radius: 10px; margin: 20px 0;'>
+                    <h3 style='color: #2980b9;'>Patient Information Form</h3>
+                </div>
+            """, unsafe_allow_html=True)
+            
+            # Create a single form with medical styling
             with st.form(key="patient_info_form", clear_on_submit=False):
-                st.write("📋 Symptom Information")
+                col1, col2 = st.columns(2)
                 
-                # All form inputs must be inside the form
-                main_complaint = st.text_input(
-                    "What is your main symptom?",
-                    placeholder="Example: headache, chest pain, dizziness...",
-                    key="main_symptom"
-                )
+                with col1:
+                    main_complaint = st.text_input(
+                        "🤒 Chief Complaint",
+                        placeholder="e.g., headache, chest pain, dizziness...",
+                        key="main_symptom"
+                    )
+                    
+                    duration = st.text_input(
+                        "⏱️ Duration of Symptoms",
+                        placeholder="e.g., 2 days, 1 week, several months...",
+                        key="duration"
+                    )
                 
-                duration = st.text_input(
-                    "How long have you been experiencing this?",
-                    placeholder="Example: 2 days, 1 week, several months...",
-                    key="duration"
-                )
+                with col2:
+                    severity = st.slider(
+                        "📊 Pain/Discomfort Level",
+                        min_value=1,
+                        max_value=10,
+                        value=5,
+                        help="1 = Mild, 10 = Severe",
+                        key="severity"
+                    )
                 
-                severity = st.slider(
-                    "On a scale of 1-10, how severe is your symptom?",
-                    min_value=1,
-                    max_value=10,
-                    value=5,
-                    key="severity"
-                )
+                st.markdown("---")
                 
                 other_symptoms = st.text_area(
-                    "Are you experiencing any other symptoms?",
-                    placeholder="List any other symptoms you're experiencing...",
+                    "🔍 Associated Symptoms",
+                    placeholder="Please list any other symptoms you're experiencing...",
                     height=100,
                     key="other_symptoms"
                 )
                 
                 medical_history = st.text_area(
-                    "Any relevant medical history?",
-                    placeholder="Include any ongoing conditions, medications, or allergies...",
+                    "📋 Medical History",
+                    placeholder="Include any ongoing conditions, medications, allergies, or previous surgeries...",
                     height=100,
                     key="medical_history"
                 )
                 
-                # The form submit button must be the last element in the form
                 submitted = st.form_submit_button(
-                    "Start Medical Consultation",
+                    "🏥 Start Consultation",
                     use_container_width=True,
-                    type="primary"  # Makes the button more prominent
                 )
                 
-                # Only process the form when the submit button is clicked
                 if submitted:
                     if not main_complaint:
-                        st.error("Please describe your main symptom.")
+                        st.error("❗ Please describe your main symptom.")
                     else:
                         patient_conversation = f"""
-                        Main Symptom: {main_complaint}
+                        Chief Complaint: {main_complaint}
                         Duration: {duration}
-                        Severity: {severity}/10
-                        Additional Symptoms: {other_symptoms}
+                        Severity Level: {severity}/10
+                        Associated Symptoms: {other_symptoms}
                         Medical History: {medical_history}
                         """
                         
@@ -332,13 +385,23 @@ def main():
                         st.session_state.current_step = "history"
                         st.rerun()
     
-    # Display conversation history
+    # Display conversation history with medical styling
     for role, message in st.session_state.conversation_history:
         if role == "patient":
-            st.write("👤 You:", message)
+            st.markdown(f"""
+                <div style='background-color: #f5f6fa; padding: 15px; border-radius: 10px; margin: 10px 0;'>
+                    <p><strong>👤 Patient:</strong></p>
+                    <p style='margin-left: 20px;'>{message}</p>
+                </div>
+            """, unsafe_allow_html=True)
         else:
-            st.write("🤖 AgenticMD:", message)
-    
+            st.markdown(f"""
+                <div style='background-color: #eaf2f8; padding: 15px; border-radius: 10px; margin: 10px 0;'>
+                    <p><strong>👨‍⚕️ AgenticMD:</strong></p>
+                    <p style='margin-left: 20px;'>{message}</p>
+                </div>
+            """, unsafe_allow_html=True)
+
     # Handle workflow steps
     if st.session_state.workflow_started:
         try:
