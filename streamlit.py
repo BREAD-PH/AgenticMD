@@ -219,6 +219,17 @@ def main():
         """)
         
         st.divider()
+        # API Key input in sidebar
+        api_key = st.text_input(
+            "Enter OpenAI API Key",
+            type="password",
+            help="Required for accessing the AI medical assistant",
+            key="openai_api_key"
+        )
+        if api_key:
+            os.environ["OPENAI_API_KEY"] = api_key
+        
+        st.divider()
         st.subheader("🔒 Disclaimer")
         st.write("""
         This is an AI assistant and should not replace professional medical advice. 
@@ -239,21 +250,74 @@ def main():
         st.session_state.current_step = None
         st.session_state.workflow_results = None
     
-    # Initial input form
+    # Initial input form with structured questions
     if not st.session_state.workflow_started:
-        with st.form("patient_info_form"):
-            patient_conversation = st.text_area(
-                "Please describe your medical symptoms and concerns:", 
-                height=200,
-                placeholder="Example: I've been experiencing chest pain and shortness of breath for the past week..."
-            )
-            submit_button = st.form_submit_button("Start Medical Workflow")
-            
-            if submit_button and patient_conversation:
-                st.session_state.conversation_history.append(("patient", patient_conversation))
-                st.session_state.workflow_started = True
-                st.session_state.current_step = "history"
-                st.rerun()
+        if not api_key:
+            st.error("Please enter your OpenAI API key in the sidebar to continue.")
+        else:
+            with st.form(key="patient_info_form", clear_on_submit=False):
+                st.write("📋 Symptom Information")
+                
+                main_complaint = st.text_input(
+                    "What is your main symptom?",
+                    placeholder="Example: headache, chest pain, dizziness...",
+                    key="main_symptom",
+                    on_change=None  # Disable automatic submission on Enter
+                )
+                
+                duration = st.text_input(
+                    "How long have you been experiencing this?",
+                    placeholder="Example: 2 days, 1 week, several months...",
+                    key="duration",
+                    on_change=None
+                )
+                
+                severity = st.slider(
+                    "On a scale of 1-10, how severe is your symptom?",
+                    min_value=1,
+                    max_value=10,
+                    value=5,
+                    key="severity"
+                )
+                
+                other_symptoms = st.text_area(
+                    "Are you experiencing any other symptoms?",
+                    placeholder="List any other symptoms you're experiencing...",
+                    height=100,
+                    key="other_symptoms"
+                )
+                
+                medical_history = st.text_area(
+                    "Any relevant medical history?",
+                    placeholder="Include any ongoing conditions, medications, or allergies...",
+                    height=100,
+                    key="medical_history"
+                )
+                
+                # Submit button at bottom of form
+                submit_button = st.form_submit_button(
+                    "Start Medical Consultation",
+                    use_container_width=True  # Make button full width
+                )
+                
+                # Only process form when button is clicked
+                if submit_button:
+                    if not main_complaint:
+                        st.error("Please describe your main symptom.")
+                    else:
+                        # Format the collected information
+                        patient_conversation = f"""
+                        Main Symptom: {main_complaint}
+                        Duration: {duration}
+                        Severity: {severity}/10
+                        Additional Symptoms: {other_symptoms}
+                        Medical History: {medical_history}
+                        """
+                        
+                        st.session_state.conversation_history.append(("patient", patient_conversation))
+                        st.session_state.workflow_started = True
+                        st.session_state.current_step = "history"
+                        st.rerun()
     
     # Display conversation history
     for role, message in st.session_state.conversation_history:
