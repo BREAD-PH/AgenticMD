@@ -266,43 +266,68 @@ def main():
     if st.session_state.workflow_started:
         try:
             if st.session_state.current_step == "history":
-                # Initialize context if not exists
+                # Initialize context and question index if not exists
                 if "context" not in st.session_state:
                     st.session_state.context = {
                         "patient_info": st.session_state.conversation_history[-1][1],
-                        "follow_ups": ""
+                        "follow_ups": {},  # Store responses by question category
+                        "current_question_idx": 0
                     }
                 
-                # Start history taking
-                history_response = agent_workflow_step(
-                    history_agent,
-                    st.session_state.context,
-                    "Collect patient history using OLDCARTS format. Ask only crucial missing information. If you have enough information for a basic assessment, proceed without further questions.",
-                    st.session_state.conversation_history[-1][1]
-                )
+                # OLDCART questions sequence
+                oldcart_questions = [
+                    {"category": "Onset", "question": "When did you first start feeling dizzy?"},
+                    {"category": "Location", "question": "Can you describe where you feel the dizziness? Is it a feeling of spinning, lightheadedness, or something else?"},
+                    {"category": "Duration", "question": "How long does the dizziness last when it happens?"},
+                    {"category": "Character", "question": "How would you describe the sensation? Is it mild, moderate, or severe?"},
+                    {"category": "Aggravating", "question": "Does anything make the dizziness worse?"},
+                    {"category": "Relieving", "question": "Is there anything that helps relieve the dizziness?"},
+                    {"category": "Timing", "question": "Does the dizziness happen all the time, or is it intermittent?"},
+                    {"category": "Severity", "question": "On a scale of 1 to 10, how would you rate the severity of your dizziness?"}
+                ]
                 
-                # Check if the response contains crucial OLDCART elements
-                crucial_elements = ["onset", "location", "character", "severity"]
-                has_crucial_info = all(element.lower() in history_response.lower() for element in crucial_elements)
+                # Display conversation history
+                for role, message in st.session_state.conversation_history:
+                    if role == "patient":
+                        st.write("👤 You:", message)
+                    else:
+                        st.write("🤖 AgenticMD:", message)
                 
-                if "?" in history_response and not has_crucial_info:
-                    st.session_state.conversation_history.append(("agent", history_response))
-                    # Show input for follow-up response
-                    with st.form("follow_up_form"):
-                        follow_up_response = st.text_area(
-                            "Please provide additional details:",
+                # Present current question if not all questions answered
+                current_idx = st.session_state.context["current_question_idx"]
+                if current_idx < len(oldcart_questions):
+                    current_q = oldcart_questions[current_idx]
+                    
+                    if current_idx == 0 or st.session_state.context["follow_ups"].get(oldcart_questions[current_idx-1]["category"]):
+                        st.write("🤖 AgenticMD:", current_q["question"])
+                        
+                        user_response = st.text_area(
+                            "Your response:",
+                            key=f"response_{current_q['category']}",
                             height=100
                         )
-                        if st.form_submit_button("Submit Additional Information"):
-                            # Add follow-up to context
-                            st.session_state.context["follow_ups"] += f"\n{follow_up_response}"
-                            st.session_state.conversation_history.append(("patient", follow_up_response))
-                            st.rerun()
+                        
+                        if st.button("Submit Response"):
+                            if user_response:
+                                # Store response and update conversation history
+                                st.session_state.context["follow_ups"][current_q["category"]] = user_response
+                                st.session_state.conversation_history.extend([
+                                    ("agent", current_q["question"]),
+                                    ("patient", user_response)
+                                ])
+                                # Move to next question
+                                st.session_state.context["current_question_idx"] += 1
+                                st.rerun()
                 else:
-                    # History taking complete, move to next step
+                    # All questions answered, compile final history
+                    full_history = (
+                        f"Initial complaint: {st.session_state.context['patient_info']}\n" +
+                        "\n".join([f"{cat}: {resp}" for cat, resp in st.session_state.context["follow_ups"].items()])
+                    )
+                    
+                    # Move to next step
                     st.session_state.current_step = "medical_history"
-                    st.session_state.workflow_results = {'history': history_response}
-                    # Clear context for next step
+                    st.session_state.workflow_results = {'history': full_history}
                     st.session_state.context = {}
                     st.rerun()
             
