@@ -106,21 +106,10 @@ def medical_workflow_streamlit(patient_conversation):
     )
     
     # Generate PDF
+    
     pdf_path = generate_prescription_pdf(
-        doctor_info="Dr. AI Assistant",
-        patient_info={
-            "name": "Patient",
-            "age": "Unknown",
-            "date": datetime.now().strftime('%Y-%m-%d')
-        },
-        medications=[
-            {
-                "name": "Medication",
-                "quantity": "As prescribed",
-                "instructions": "Follow treatment plan"
-            }
-        ],
-        output_path=f"prescription_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        prescription_text=formatted_prescription,
+        output_path=f"prescriptions/prescription_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
     )
     
     return workflow_results, pdf_path
@@ -128,7 +117,7 @@ def medical_workflow_streamlit(patient_conversation):
 def main():
     st.set_page_config(page_title="AI Medical Workflow Assistant", page_icon="🩺")
     
-    st.title("🩺 AI Medical Workflow Assistant")
+    st.title("🩺 AgenticMD")
     
     with st.form("patient_info_form"):
         patient_conversation = st.text_area(

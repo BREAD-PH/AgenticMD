@@ -559,7 +559,7 @@ def medical_workflow(patient_conversation):
             # Generate the PDF
             pdf_path = generate_prescription_pdf(
                 prescription_text=formatted_prescription,
-                output_path=f"prescription_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+                output_path=f"prescriptions/prescription_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
             )
             
             workflow_state["pdf_generated"] = True
