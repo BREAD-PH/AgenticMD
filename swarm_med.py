@@ -321,7 +321,7 @@ summary_agent = Agent(
     4. Professional medical terminology
 
     ONLY include the formatted prescription and how to take the medication, nothing else. Make this concise.
-    Output your response in a PLAIN TEXT FORMAT, that can be rendered thorugh SimpleDocTemplate.
+    Output your response in a PDF-RENDERABLE format, that can be rendered thorugh SimpleDocTemplate.
     """,
     model="gpt-4o-mini",
     functions=[transfer_to_orchestrator]
