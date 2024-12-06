@@ -327,120 +327,37 @@ summary_agent = Agent(
 )
 
 # Update PDF generation function
-def generate_prescription_pdf(doctor_info, patient_info, medications, output_path="prescription.pdf"):
-    """Generate a professional medical prescription PDF."""
+def generate_prescription_pdf(medications, output_path="prescription.pdf"):
+    """Generate a minimal prescription PDF with just medications and instructions."""
     doc = SimpleDocTemplate(output_path, pagesize=letter, topMargin=40, leftMargin=40, rightMargin=40)
     styles = getSampleStyleSheet()
     story = []
 
-    # Create custom styles
-    title_style = ParagraphStyle(
-        'CustomTitle',
-        parent=styles['Heading1'],
-        fontSize=18,
-        spaceAfter=5,
-        alignment=1,  # Center alignment
-        leading=22
-    )
-    
-    subtitle_style = ParagraphStyle(
-        'CustomSubtitle',
-        parent=styles['Normal'],
-        fontSize=14,
-        spaceAfter=5,
-        alignment=1  # Center alignment
-    )
-
-    contact_style = ParagraphStyle(
-        'ContactInfo',
-        parent=styles['Normal'],
-        fontSize=11,
-        alignment=1,  # Center alignment
-        spaceAfter=20
-    )
-
-    info_style = ParagraphStyle(
-        'InfoStyle',
+    # Simple style for all text
+    basic_style = ParagraphStyle(
+        'BasicStyle',
         parent=styles['Normal'],
         fontSize=12,
         spaceBefore=5,
-        spaceAfter=5
+        spaceAfter=5,
+        leftIndent=20  # Add indentation for bullet points
     )
 
-    rx_style = ParagraphStyle(
+    # Rx symbol
+    story.append(Paragraph("℞", ParagraphStyle(
         'RxStyle',
         parent=styles['Normal'],
-        fontSize=40,
-        leading=50,
-        spaceBefore=10,
-        spaceAfter=10
-    )
+        fontSize=24,
+        leading=30
+    )))
 
-    med_style = ParagraphStyle(
-        'MedicationStyle',
-        parent=styles['Normal'],
-        fontSize=12,
-        leading=16,
-        spaceBefore=5,
-        spaceAfter=5
-    )
-
-    # Add doctor header
-    story.append(Paragraph(doctor_info['name'], title_style))
-    story.append(Paragraph(doctor_info['title'], subtitle_style))
-    story.append(Paragraph(f"{doctor_info['address']}", contact_style))
-    story.append(Paragraph(f"{doctor_info['email']} | {doctor_info['phone']}", contact_style))
-
-    # Add horizontal line
-    story.append(HRFlowable(width="100%", thickness=1, color=black, spaceBefore=0, spaceAfter=10))
-
-    # Create a table for patient info
-    patient_data = [
-        [Paragraph("Name:", info_style), 
-         Paragraph(patient_info['name'], info_style), 
-         Paragraph("Age:", info_style), 
-         Paragraph(patient_info['age'], info_style)],
-        [Paragraph("Address:", info_style), 
-         Paragraph(patient_info['address'], info_style), 
-         Paragraph("Date:", info_style), 
-         Paragraph(patient_info['date'], info_style)]
-    ]
-    
-    patient_table = Table(patient_data, colWidths=[60, 250, 40, 100])
-    patient_table.setStyle(TableStyle([
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-    ]))
-    story.append(patient_table)
-    story.append(Spacer(1, 20))
-
-    # Add Rx symbol
-    story.append(Paragraph("℞", rx_style))
-
-    # Add medications
+    # Medications in bullet point format
     for med in medications:
-        story.append(Paragraph(f"{med['name']}", med_style))
-        story.append(Paragraph(f"#{med['quantity']}", med_style))
-        story.append(Paragraph(f"Sig. {med['instructions']}", med_style))
-        story.append(Spacer(1, 15))
+        story.append(Paragraph(f"• {med['name']}", basic_style))
+        story.append(Paragraph(f"  Quantity: {med['quantity']}", basic_style))
+        story.append(Paragraph(f"  Instructions: {med['instructions']}", basic_style))
+        story.append(Spacer(1, 10))
 
-    # Add signature section at the bottom
-    story.append(Spacer(1, 40))
-    signature_data = [
-        [Paragraph(doctor_info['signature_name'], info_style)],
-        [Paragraph(f"LIC NO: {doctor_info['license_no']}", info_style)],
-        [Paragraph(f"PTR: {doctor_info['ptr_no']}", info_style)],
-        [Paragraph("Signature", info_style)]
-    ]
-    
-    signature_table = Table(signature_data, colWidths=[200])
-    signature_table.setStyle(TableStyle([
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-    ]))
-    story.append(signature_table)
-
-    # Build PDF
     doc.build(story)
     return output_path
 
@@ -636,35 +553,14 @@ def medical_workflow(patient_conversation):
             
             # Generate the PDF
             pdf_path = generate_prescription_pdf(
-                {
-                    "name": "Dr. John Doe",
-                    "title": "MD",
-                    "address": "123 Main St, Anytown, USA",
-                    "email": "johndoe@example.com",
-                    "phone": "555-555-5555",
-                    "signature_name": "John Doe, MD",
-                    "license_no": "123456",
-                    "ptr_no": "789012"
-                },
-                {
-                    "name": "Jane Doe",
-                    "age": "30",
-                    "address": "456 Elm St, Anytown, USA",
-                    "date": "2023-02-20"
-                },
-                [
+                medications=[
                     {
-                        "name": "Acetaminophen",
+                        "name": "Medication Name",
                         "quantity": "30",
-                        "instructions": "Take 1 tablet every 4-6 hours as needed for pain"
-                    },
-                    {
-                        "name": "Ibuprofen",
-                        "quantity": "20",
-                        "instructions": "Take 1 tablet every 4-6 hours as needed for pain"
+                        "instructions": "Take as directed"
                     }
                 ],
-                output_path=f"prescriptions/prescription_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+                output_path=f"prescription_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
             )
             
             workflow_state["pdf_generated"] = True
