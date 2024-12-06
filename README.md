@@ -1,28 +1,50 @@
 # AgenticMD
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+A minimal SvelteKit project with TypeScript, created using [`bunx sv create`](https://github.com/sveltejs/kit).
 
-## Creating a project
+## Project Setup Details
 
-If you're seeing this, you've probably already done this step. Congrats!
+This project was initialized with the following configuration choices in `bunx sv create`:
+
+1. **Project Location**:
+   - Selected: `./` (current directory)
+   - Confirmed: "Yes" to continue with non-empty directory
+
+2. **Template Selection**:
+   - Selected: "SvelteKit minimal"
+
+3. **Type Checking**:
+   - Selected: "Yes, using TypeScript syntax"
+
+4. **Additional Tools** (selected using space bar):
+   - prettier
+   - eslint
+   - vitest
+   - playwright
+   - tailwindcss
+   - mdsvex
+
+5. **TailwindCSS Configuration**:
+   - Plugins: "none"
+
+6. **Package Manager**:
+   - Selected: "bun"
+
+## Development
+
+Once you've cloned the project, install dependencies with:
 
 ```bash
-# create a new project in the current directory
-npx sv create
-
-# create a new project in my-app
-npx sv create my-app
+bun install
 ```
 
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+Start the development server:
 
 ```bash
-npm run dev
+bun run dev
 
 # or start the server and open the app in a new browser tab
-npm run dev -- --open
+bun run dev -- --open
 ```
 
 ## Building
@@ -30,9 +52,20 @@ npm run dev -- --open
 To create a production version of your app:
 
 ```bash
-npm run build
+bun run build
 ```
 
-You can preview the production build with `npm run preview`.
+You can preview the production build with `bun run preview`.
 
 > To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+
+## Testing
+
+Run unit tests:
+```bash
+bun run test
+```
+
+Run end-to-end tests:
+```bash
+bun run test:e2e
