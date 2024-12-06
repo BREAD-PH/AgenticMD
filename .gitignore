@@ -188,3 +188,10 @@ Thumbs.db
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+
+######
+SSH Keys
+######
+github-AgenticMD
+*.pub
