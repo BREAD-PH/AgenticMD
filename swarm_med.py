@@ -8,6 +8,8 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from datetime import datetime
 
+os.environ['OPENAI_API_KEY'] = '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'
+api = OpenAI(api_key="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")
 
 client = Swarm(api)
 
@@ -72,6 +74,7 @@ history_agent = Agent(
     A: Aggravating factors
     R: Relieving factors
     T: Timing
+    S: Severity
     Ensure all aspects are covered before concluding the history-taking.
 
     Context:
@@ -86,7 +89,7 @@ history_agent = Agent(
     Examples:
     Patient complaint: "I have a burning sensation when I urinate."
 
-    Output in OLDCART format:
+    Output in OLDCARTS format:
 
     Onset: When did the burning sensation begin? (e.g., "It started yesterday.")
     Location: Where exactly do you feel the burning sensation? (e.g., "In the urinary tract.")
@@ -280,6 +283,48 @@ prescription_agent = Agent(
     functions=[transfer_to_orchestrator]
 )
 
+# Add new Summary Agent
+summary_agent = Agent(
+    name="Summary Agent",
+    instructions="""
+    R (Role):
+    You are a Summary Agent specialized in formatting medical prescriptions in a clear, concise format following standard prescription layouts.
+
+    I (Input):
+    You will receive:
+    1. Treatment plan
+    2. Prescription details
+
+    C (Context):
+    You need to format the prescription information into:
+    1. Basic patient/doctor header info (placeholder)
+    2. Clear Rx format with:
+        - Medication name
+        - Quantity
+        - Sig (instructions)
+    3. Remove unnecessary narrative text
+
+    C (Constraints):
+    1. Keep only essential prescription information
+    2. Format medications in standard Rx format
+    3. Use clear, concise language for instructions
+    4. Remove any discussion or explanations
+    5. Include only medication name, quantity, and instructions
+
+    E (Evaluation):
+    Success criteria:
+    1. Matches standard prescription format
+    2. Contains all essential medication details
+    3. Clear and unambiguous instructions
+    4. Professional medical terminology
+
+    ONLY include the formatted prescription and how to take the medication, nothing else. Make this concise.
+    """,
+    model="gpt-4o-mini",
+    functions=[transfer_to_orchestrator]
+)
+
+# Update PDF generation function
 def generate_prescription_pdf(treatment_plan, prescription, output_path="prescription.pdf"):
     """Generate a professional medical prescription PDF."""
     doc = SimpleDocTemplate(output_path, pagesize=letter)
@@ -484,6 +529,27 @@ def medical_workflow(patient_conversation):
             
         # Generate PDF if not done
         if not workflow_state["pdf_generated"] and workflow_state["treatment_plan"] and workflow_state["prescription"]:
+            print("\n📄 Summary Agent")
+            print("--------------------------------")
+            print("Formatting prescription for PDF...")
+            
+            response = client.run(
+                agent=summary_agent,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Format the prescription in standard Rx format"
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Treatment Plan:\n{workflow_state['treatment_plan']}\n\nPrescription:\n{workflow_state['prescription']}"
+                    }
+                ]
+            )
+            
+            formatted_prescription = response.messages[-1]["content"]
+            
+            # Continue with PDF generation using formatted_prescription instead of original prescription
             print("\n📄 PDF Generation Agent")
             print("--------------------------------")
             print("Creating prescription PDF...")
@@ -495,7 +561,7 @@ def medical_workflow(patient_conversation):
                 },
                 {
                     "role": "user",
-                    "content": f"Treatment Plan:\n{workflow_state['treatment_plan']}\n\nPrescription:\n{workflow_state['prescription']}"
+                    "content": f"Treatment Plan:\n{workflow_state['treatment_plan']}\n\nPrescription:\n{formatted_prescription}"
                 }
             ]
             
@@ -507,7 +573,7 @@ def medical_workflow(patient_conversation):
             # Generate the PDF
             pdf_path = generate_prescription_pdf(
                 workflow_state["treatment_plan"],
-                workflow_state["prescription"],
+                formatted_prescription,
                 output_path=f"prescriptions/prescription_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
             )
             
