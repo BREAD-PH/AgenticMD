@@ -15,7 +15,7 @@ from swarm_med import (
     assessment_agent, 
     treatment_agent, 
     prescription_agent, 
-    summary_agent, 
+    summary_agent,
     pdf_generation_agent,
     generate_prescription_pdf
 )
@@ -24,11 +24,14 @@ def agent_workflow_step(agent, context, system_msg, user_msg):
     """Execute an agent workflow step and capture its thought process."""
     with st.expander(f"{agent.name} Processing"):
         try:
+            # Combine original message with any follow-up responses
+            full_context = context.get("patient_info", "") + "\n" + context.get("follow_ups", "")
+            
             response = client.run(
                 agent=agent,
                 messages=[
                     {"role": "system", "content": system_msg},
-                    {"role": "user", "content": user_msg}
+                    {"role": "user", "content": full_context if full_context.strip() else user_msg}
                 ]
             )
             
@@ -37,7 +40,6 @@ def agent_workflow_step(agent, context, system_msg, user_msg):
             for msg in response.messages:
                 st.write(f"{msg['role'].capitalize()}: {msg['content']}")
             
-            # Return the last message content
             return response.messages[-1]["content"]
         
         except Exception as e:
@@ -114,6 +116,87 @@ def medical_workflow_streamlit(patient_conversation):
     
     return workflow_results, pdf_path
 
+def get_missing_oldcart_elements(history_response):
+    """Check which crucial OLDCART elements are missing from the response."""
+    oldcart_elements = {
+        "onset": ["when", "start", "begin"],
+        "location": ["where", "location", "area"],
+        "character": ["feel", "describe", "nature", "type"],
+        "severity": ["scale", "severe", "intensity", "bad"]
+    }
+    
+    missing_elements = []
+    for element, keywords in oldcart_elements.items():
+        if not any(keyword in history_response.lower() for keyword in keywords):
+            missing_elements.append(element)
+    
+    return missing_elements
+
+def get_oldcart_question(missing_element):
+    """Get the appropriate question for the missing OLDCART element."""
+    questions = {
+        "onset": "When did these symptoms first begin?",
+        "location": "Where exactly do you feel these symptoms?",
+        "character": "How would you describe the nature of these symptoms?",
+        "severity": "On a scale of 1-10, how severe are your symptoms?"
+    }
+    return questions.get(missing_element)
+
+def handle_history_taking():
+    """Handle the history taking workflow with sequential OLDCART questions"""
+    if "current_question_idx" not in st.session_state:
+        st.session_state.current_question_idx = 0
+        st.session_state.responses = {}
+    
+    questions = [
+        {"id": "onset", "question": "When did you first notice the shortness of breath?"},
+        {"id": "location", "question": "Is there a specific area where you feel this discomfort, or is it general?"},
+        {"id": "character", "question": "How would you describe the shortness of breath? (e.g., tight feeling, gasping sensation, etc.)"},
+        {"id": "severity", "question": "On a scale of 1 to 10, how severe would you rate the shortness of breath?"}
+    ]
+    
+    # Display current question if we haven't finished all questions
+    if st.session_state.current_question_idx < len(questions):
+        current_q = questions[st.session_state.current_question_idx]
+        st.write("🤖 AgenticMD:", current_q["question"])
+        
+        # Create a unique key for each form
+        response = st.text_input(
+            "Your response:",
+            key=f"response_{current_q['id']}",
+            label_visibility="collapsed"
+        )
+        
+        if st.button("Submit", key=f"submit_{current_q['id']}"):
+            if response:
+                # Save response
+                st.session_state.responses[current_q["id"]] = response
+                st.session_state.conversation_history.extend([
+                    ("agent", current_q["question"]),
+                    ("patient", response)
+                ])
+                # Move to next question
+                st.session_state.current_question_idx += 1
+                st.rerun()
+    else:
+        # All questions answered, compile final history
+        full_context = (
+            st.session_state.context["patient_info"] + "\n" +
+            "\n".join([f"{q}: {st.session_state.responses.get(q['id'], '')}" 
+                      for q in questions])
+        )
+        
+        final_history = agent_workflow_step(
+            history_agent,
+            {"patient_info": full_context},
+            "Compile a complete patient history using all provided information in OLDCARTS format",
+            full_context
+        )
+        
+        st.session_state.current_step = "medical_history"
+        st.session_state.workflow_results = {'history': final_history}
+        st.rerun()
+
 def main():
     st.set_page_config(page_title="AI Medical Workflow Assistant", page_icon="🩺", layout="wide")
     
@@ -176,34 +259,13 @@ def main():
     if st.session_state.workflow_started:
         try:
             if st.session_state.current_step == "history":
-                # Start history taking
-                history_response = agent_workflow_step(
-                    history_agent,
-                    {"patient_info": st.session_state.conversation_history[-1][1]},
-                    "Collect patient history using OLDCARTS format. Ask only crucial missing information. If you have enough information for a basic assessment, proceed without further questions.",
-                    st.session_state.conversation_history[-1][1]
-                )
+                # Initialize context if not exists
+                if "context" not in st.session_state:
+                    st.session_state.context = {
+                        "patient_info": st.session_state.conversation_history[-1][1]
+                    }
                 
-                # Check if the response contains crucial OLDCART elements before asking follow-ups
-                crucial_elements = ["onset", "location", "character", "severity"]
-                has_crucial_info = all(element.lower() in history_response.lower() for element in crucial_elements)
-                
-                if "?" in history_response and not has_crucial_info:  # Only ask follow-ups if crucial info is missing
-                    st.session_state.conversation_history.append(("agent", history_response))
-                    # Show input for follow-up response
-                    with st.form("follow_up_form"):
-                        follow_up_response = st.text_area(
-                            "Please provide additional details:",
-                            height=100
-                        )
-                        if st.form_submit_button("Submit Additional Information"):
-                            st.session_state.conversation_history.append(("patient", follow_up_response))
-                            st.rerun()
-                else:
-                    # History taking complete, move to next step
-                    st.session_state.current_step = "medical_history"
-                    st.session_state.workflow_results = {'history': history_response}
-                    st.rerun()
+                handle_history_taking()
             
             # Continue with remaining workflow steps
             elif st.session_state.workflow_results:
