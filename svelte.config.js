@@ -14,7 +14,9 @@ const config = {
 		// See https://svelte.dev/docs/kit/adapters for more information about adapters.
 		adapter: adapter()
 	},
-
+	alias: {
+		"@/*": "./path/to/lib/*",
+	  },  
 	extensions: ['.svelte', '.svx']
 };
 

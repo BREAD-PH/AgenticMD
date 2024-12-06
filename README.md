@@ -2,6 +2,8 @@
 
 A minimal SvelteKit project with TypeScript, created using [`bunx sv create`](https://github.com/sveltejs/kit).
 
+
+# SvelteKit Configuration
 ## Project Setup Details
 
 This project was initialized with the following configuration choices in `bunx sv create`:
@@ -30,7 +32,41 @@ This project was initialized with the following configuration choices in `bunx s
 6. **Package Manager**:
    - Selected: "bun"
 
-## Development
+# Shadcn-svelte Configuration
+## Path Aliases Setup
+
+To configure path aliases in your project, update your `svelte.config.js`:
+
+```javascript
+const config = {
+  kit: {
+    alias: {
+      "@/*": "./path/to/lib/*"
+    }
+  }
+};
+```
+
+## UI Components Setup
+
+This project uses shadcn-svelte for UI components. The initialization was done with:
+
+```bash
+bun x shadcn-svelte@next init
+```
+
+Configuration choices made:
+- Style: Default
+- Base color: Slate
+- Global CSS file: src/app.css
+- Tailwind config: tailwind.config.ts
+- Import aliases:
+  - Components: $lib/components
+  - Utils: $lib/utils
+  - Hooks: $lib/hooks
+  - UI Components: $lib/components/ui
+
+# Development
 
 Once you've cloned the project, install dependencies with:
 
