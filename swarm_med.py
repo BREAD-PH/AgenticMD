@@ -321,14 +321,16 @@ summary_agent = Agent(
     4. Professional medical terminology
 
     ONLY include the formatted prescription and how to take the medication, nothing else. Make this concise.
-    Output your response in a PDF-RENDERABLE format, that can be rendered thorugh SimpleDocTemplate.
+    Output your response in a plain text format, that can be rendered thorugh SimpleDocTemplate. 
+    MAKE SURE TO INCLUDE THE MEDICATION NAME, QUANTITY, AND INSTRUCTIONS!! 
+    TRIPLE CHECK YOUR WORK, YOU ARE AD DOCTOR. KEEP IT CONCISE. 
     """,
     model="gpt-4o-mini",
     functions=[transfer_to_orchestrator]
 )
 
 # Update PDF generation function
-def generate_prescription_pdf(prescription_text, output_path="prescription.pdf"):
+def generate_prescription_pdf(prescription_text, output_path="prescriptions/prescription.pdf"):
     """Generate a simple prescription PDF with header and raw text."""
     doc = SimpleDocTemplate(output_path, pagesize=letter, topMargin=40, leftMargin=40, rightMargin=40)
     styles = getSampleStyleSheet()
