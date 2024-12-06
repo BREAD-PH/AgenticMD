@@ -240,6 +240,12 @@ def main():
         .stAlert {
             border-radius: 10px;
         }
+        .stTab {
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
         </style>
         """, unsafe_allow_html=True)
     
@@ -294,211 +300,307 @@ def main():
             st.sidebar.warning("⚠️ Please enter your API key to continue")
             st.stop()
 
-    # Main content area with medical styling
-    st.markdown("""
-        <div style='text-align: center; padding: 20px;'>
-            <h1 style='color: #2c3e50;'>🏥 Agentic MD: Your AI Doctor</h1>
-            <p style='color: #7f8c8d;'>Powered by Bread AI</p>
-        </div>
-    """, unsafe_allow_html=True)
+    # Create tabs for Consultation and About
+    tab1, tab2 = st.tabs(["🏥 Consultation", "ℹ️ About"])
     
-    # Initialize session state for conversation history
-    if 'conversation_history' not in st.session_state:
-        st.session_state.conversation_history = []
-        st.session_state.workflow_started = False
-        st.session_state.current_step = None
-        st.session_state.workflow_results = None
-    
-    # Initial input form with medical styling
-    if not st.session_state.workflow_started:
-        if not st.session_state.openai_api:
-            st.error("🔐 Please enter your OpenAI API key in the sidebar to continue.")
-        else:
-            st.markdown("""
-                <div style='background-color: #eaf2f8; padding: 20px; border-radius: 10px; margin: 20px 0;'>
-                    <h3 style='color: #2980b9;'>Patient Information Form</h3>
-                </div>
-            """, unsafe_allow_html=True)
-            
-            # Create a single form with medical styling
-            with st.form(key="patient_info_form", clear_on_submit=False):
-                col1, col2 = st.columns(2)
+    with tab1:
+        # Main content area with medical styling
+        st.markdown("""
+            <div style='text-align: center; padding: 20px;'>
+                <h1 style='color: #2c3e50;'>🏥 Agentic MD: Your AI Doctor</h1>
+                <p style='color: #7f8c8d;'>Powered by Bread AI</p>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        # Initialize session state for conversation history
+        if 'conversation_history' not in st.session_state:
+            st.session_state.conversation_history = []
+            st.session_state.workflow_started = False
+            st.session_state.current_step = None
+            st.session_state.workflow_results = None
+        
+        # Initial input form with medical styling
+        if not st.session_state.workflow_started:
+            if not st.session_state.openai_api:
+                st.error("🔐 Please enter your OpenAI API key in the sidebar to continue.")
+            else:
+                st.markdown("""
+                    <div style='background-color: #eaf2f8; padding: 20px; border-radius: 10px; margin: 20px 0;'>
+                        <h3 style='color: #2980b9;'>Patient Information Form</h3>
+                    </div>
+                """, unsafe_allow_html=True)
                 
-                with col1:
-                    main_complaint = st.text_input(
-                        "🤒 Chief Complaint",
-                        placeholder="e.g., headache, chest pain, dizziness...",
-                        key="main_symptom"
-                    )
+                # Create a single form with medical styling
+                with st.form(key="patient_info_form", clear_on_submit=False):
+                    col1, col2 = st.columns(2)
                     
-                    duration = st.text_input(
-                        "⏱️ Duration of Symptoms",
-                        placeholder="e.g., 2 days, 1 week, several months...",
-                        key="duration"
-                    )
-                
-                with col2:
-                    severity = st.slider(
-                        "📊 Pain/Discomfort Level",
-                        min_value=1,
-                        max_value=10,
-                        value=5,
-                        help="1 = Mild, 10 = Severe",
-                        key="severity"
-                    )
-                
-                st.markdown("---")
-                
-                other_symptoms = st.text_area(
-                    "🔍 Associated Symptoms",
-                    placeholder="Please list any other symptoms you're experiencing...",
-                    height=100,
-                    key="other_symptoms"
-                )
-                
-                medical_history = st.text_area(
-                    "📋 Medical History",
-                    placeholder="Include any ongoing conditions, medications, allergies, or previous surgeries...",
-                    height=100,
-                    key="medical_history"
-                )
-                
-                submitted = st.form_submit_button(
-                    "🏥 Start Consultation",
-                    use_container_width=True,
-                )
-                
-                if submitted:
-                    if not main_complaint:
-                        st.error("❗ Please describe your main symptom.")
-                    else:
-                        patient_conversation = f"""
-                        Chief Complaint: {main_complaint}
-                        Duration: {duration}
-                        Severity Level: {severity}/10
-                        Associated Symptoms: {other_symptoms}
-                        Medical History: {medical_history}
-                        """
-                        
-                        st.session_state.conversation_history.append(("patient", patient_conversation))
-                        st.session_state.workflow_started = True
-                        st.session_state.current_step = "history"
-                        st.rerun()
-    
-    # Display conversation history with medical styling
-    for role, message in st.session_state.conversation_history:
-        if role == "patient":
-            st.markdown(f"""
-                <div style='background-color: #f5f6fa; padding: 15px; border-radius: 10px; margin: 10px 0;'>
-                    <p><strong>👤 Patient:</strong></p>
-                    <p style='margin-left: 20px;'>{message}</p>
-                </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown(f"""
-                <div style='background-color: #eaf2f8; padding: 15px; border-radius: 10px; margin: 10px 0;'>
-                    <p><strong>👨‍⚕️ AgenticMD:</strong></p>
-                    <p style='margin-left: 20px;'>{message}</p>
-                </div>
-            """, unsafe_allow_html=True)
-
-    # Handle workflow steps
-    if st.session_state.workflow_started:
-        try:
-            if st.session_state.current_step == "history":
-                # Initialize context and question index if not exists
-                if "context" not in st.session_state:
-                    st.session_state.context = {
-                        "patient_info": st.session_state.conversation_history[-1][1],
-                        "follow_ups": {},  # Store responses by question category
-                        "current_question_idx": 0
-                    }
-                
-                # OLDCART questions sequence
-                oldcart_questions = [
-                    {"category": "Onset", "question": "When did you first start feeling dizzy?"},
-                    {"category": "Location", "question": "Can you describe where you feel the dizziness? Is it a feeling of spinning, lightheadedness, or something else?"},
-                    {"category": "Duration", "question": "How long does the dizziness last when it happens?"},
-                    {"category": "Character", "question": "How would you describe the sensation? Is it mild, moderate, or severe?"},
-                    {"category": "Aggravating", "question": "Does anything make the dizziness worse?"},
-                    {"category": "Relieving", "question": "Is there anything that helps relieve the dizziness?"},
-                    {"category": "Timing", "question": "Does the dizziness happen all the time, or is it intermittent?"},
-                    {"category": "Severity", "question": "On a scale of 1 to 10, how would you rate the severity of your dizziness?"}
-                ]
-                
-                # Display conversation history
-                for role, message in st.session_state.conversation_history:
-                    if role == "patient":
-                        st.write("👤 You:", message)
-                    else:
-                        st.write("🤖 AgenticMD:", message)
-                
-                # Present current question if not all questions answered
-                current_idx = st.session_state.context["current_question_idx"]
-                if current_idx < len(oldcart_questions):
-                    current_q = oldcart_questions[current_idx]
-                    
-                    if current_idx == 0 or st.session_state.context["follow_ups"].get(oldcart_questions[current_idx-1]["category"]):
-                        st.write("🤖 AgenticMD:", current_q["question"])
-                        
-                        user_response = st.text_area(
-                            "Your response:",
-                            key=f"response_{current_q['category']}",
-                            height=100
+                    with col1:
+                        main_complaint = st.text_input(
+                            "🤒 Chief Complaint",
+                            placeholder="e.g., headache, chest pain, dizziness...",
+                            key="main_symptom"
                         )
                         
-                        if st.button("Submit Response"):
-                            if user_response:
-                                # Store response and update conversation history
-                                st.session_state.context["follow_ups"][current_q["category"]] = user_response
-                                st.session_state.conversation_history.extend([
-                                    ("agent", current_q["question"]),
-                                    ("patient", user_response)
-                                ])
-                                # Move to next question
-                                st.session_state.context["current_question_idx"] += 1
-                                st.rerun()
-                else:
-                    # All questions answered, compile final history
-                    full_history = (
-                        f"Initial complaint: {st.session_state.context['patient_info']}\n" +
-                        "\n".join([f"{cat}: {resp}" for cat, resp in st.session_state.context["follow_ups"].items()])
+                        duration = st.text_input(
+                            "⏱️ Duration of Symptoms",
+                            placeholder="e.g., 2 days, 1 week, several months...",
+                            key="duration"
+                        )
+                    
+                    with col2:
+                        severity = st.slider(
+                            "📊 Pain/Discomfort Level",
+                            min_value=1,
+                            max_value=10,
+                            value=5,
+                            help="1 = Mild, 10 = Severe",
+                            key="severity"
+                        )
+                    
+                    st.markdown("---")
+                    
+                    other_symptoms = st.text_area(
+                        "🔍 Associated Symptoms",
+                        placeholder="Please list any other symptoms you're experiencing...",
+                        height=100,
+                        key="other_symptoms"
                     )
                     
-                    # Move to next step
-                    st.session_state.current_step = "medical_history"
-                    st.session_state.workflow_results = {'history': full_history}
-                    st.session_state.context = {}
-                    st.rerun()
-            
-            # Continue with remaining workflow steps
-            elif st.session_state.workflow_results:
-                workflow_results, pdf_path = complete_medical_workflow(st.session_state.workflow_results)
-                st.success("Medical workflow completed successfully!")
-                
-                # Display download button for prescription
-                with open(pdf_path, "rb") as pdf_file:
-                    st.download_button(
-                        label="Download Prescription PDF",
-                        data=pdf_file,
-                        file_name=os.path.basename(pdf_path),
-                        mime="application/pdf"
+                    medical_history = st.text_area(
+                        "📋 Medical History",
+                        placeholder="Include any ongoing conditions, medications, allergies, or previous surgeries...",
+                        height=100,
+                        key="medical_history"
                     )
+                    
+                    submitted = st.form_submit_button(
+                        "🏥 Start Consultation",
+                        use_container_width=True,
+                    )
+                    
+                    if submitted:
+                        if not main_complaint:
+                            st.error("❗ Please describe your main symptom.")
+                        else:
+                            patient_conversation = f"""
+                            Chief Complaint: {main_complaint}
+                            Duration: {duration}
+                            Severity Level: {severity}/10
+                            Associated Symptoms: {other_symptoms}
+                            Medical History: {medical_history}
+                            """
+                            
+                            st.session_state.conversation_history.append(("patient", patient_conversation))
+                            st.session_state.workflow_started = True
+                            st.session_state.current_step = "history"
+                            st.rerun()
+    
+        # Display conversation history with medical styling
+        for role, message in st.session_state.conversation_history:
+            if role == "patient":
+                st.markdown(f"""
+                    <div style='background-color: #f5f6fa; padding: 15px; border-radius: 10px; margin: 10px 0;'>
+                        <p><strong>👤 Patient:</strong></p>
+                        <p style='margin-left: 20px;'>{message}</p>
+                    </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown(f"""
+                    <div style='background-color: #eaf2f8; padding: 15px; border-radius: 10px; margin: 10px 0;'>
+                        <p><strong>👨‍⚕️ AgenticMD:</strong></p>
+                        <p style='margin-left: 20px;'>{message}</p>
+                    </div>
+                """, unsafe_allow_html=True)
+
+        # Handle workflow steps
+        if st.session_state.workflow_started:
+            try:
+                if st.session_state.current_step == "history":
+                    # Initialize context and question index if not exists
+                    if "context" not in st.session_state:
+                        st.session_state.context = {
+                            "patient_info": st.session_state.conversation_history[-1][1],
+                            "follow_ups": {},  # Store responses by question category
+                            "current_question_idx": 0
+                        }
+                    
+                    # OLDCART questions sequence
+                    oldcart_questions = [
+                        {"category": "Onset", "question": "When did you first start feeling dizzy?"},
+                        {"category": "Location", "question": "Can you describe where you feel the dizziness? Is it a feeling of spinning, lightheadedness, or something else?"},
+                        {"category": "Duration", "question": "How long does the dizziness last when it happens?"},
+                        {"category": "Character", "question": "How would you describe the sensation? Is it mild, moderate, or severe?"},
+                        {"category": "Aggravating", "question": "Does anything make the dizziness worse?"},
+                        {"category": "Relieving", "question": "Is there anything that helps relieve the dizziness?"},
+                        {"category": "Timing", "question": "Does the dizziness happen all the time, or is it intermittent?"},
+                        {"category": "Severity", "question": "On a scale of 1 to 10, how would you rate the severity of your dizziness?"}
+                    ]
+                    
+                    # Display conversation history
+                    for role, message in st.session_state.conversation_history:
+                        if role == "patient":
+                            st.write("👤 You:", message)
+                        else:
+                            st.write("🤖 AgenticMD:", message)
+                    
+                    # Present current question if not all questions answered
+                    current_idx = st.session_state.context["current_question_idx"]
+                    if current_idx < len(oldcart_questions):
+                        current_q = oldcart_questions[current_idx]
+                        
+                        if current_idx == 0 or st.session_state.context["follow_ups"].get(oldcart_questions[current_idx-1]["category"]):
+                            st.write("🤖 AgenticMD:", current_q["question"])
+                            
+                            user_response = st.text_area(
+                                "Your response:",
+                                key=f"response_{current_q['category']}",
+                                height=100
+                            )
+                            
+                            if st.button("Submit Response"):
+                                if user_response:
+                                    # Store response and update conversation history
+                                    st.session_state.context["follow_ups"][current_q["category"]] = user_response
+                                    st.session_state.conversation_history.extend([
+                                        ("agent", current_q["question"]),
+                                        ("patient", user_response)
+                                    ])
+                                    # Move to next question
+                                    st.session_state.context["current_question_idx"] += 1
+                                    st.rerun()
+                    else:
+                        # All questions answered, compile final history
+                        full_history = (
+                            f"Initial complaint: {st.session_state.context['patient_info']}\n" +
+                            "\n".join([f"{cat}: {resp}" for cat, resp in st.session_state.context["follow_ups"].items()])
+                        )
+                        
+                        # Move to next step
+                        st.session_state.current_step = "medical_history"
+                        st.session_state.workflow_results = {'history': full_history}
+                        st.session_state.context = {}
+                        st.rerun()
                 
-                # Display final results
-                st.subheader("📄 Final Results Summary")
-                st.write("**Treatment Plan:**")
-                st.write(workflow_results['treatment_plan'])
-                st.write("**Prescription:**")
-                st.write(workflow_results['prescription'])
-                
-                # Reset workflow
-                if st.button("Start New Consultation"):
+                # Continue with remaining workflow steps
+                elif st.session_state.workflow_results:
+                    workflow_results, pdf_path = complete_medical_workflow(st.session_state.workflow_results)
+                    st.success("Medical workflow completed successfully!")
+                    
+                    # Display download button for prescription
+                    with open(pdf_path, "rb") as pdf_file:
+                        st.download_button(
+                            label="Download Prescription PDF",
+                            data=pdf_file,
+                            file_name=os.path.basename(pdf_path),
+                            mime="application/pdf"
+                        )
+                    
+                    # Display final results
+                    st.subheader("📄 Final Results Summary")
+                    st.write("**Treatment Plan:**")
+                    st.write(workflow_results['treatment_plan'])
+                    st.write("**Prescription:**")
+                    st.write(workflow_results['prescription'])
+                    
+                    # Reset workflow
+                    if st.button("Start New Consultation"):
+                        st.session_state.clear()
+                        st.rerun()
+            
+            except Exception as e:
+                st.error(f"An error occurred during the medical workflow: {e}")
+                if st.button("Restart Consultation"):
                     st.session_state.clear()
                     st.rerun()
+
+    with tab2:
+        st.markdown("# 🏥 AgenticMD: Your AI Doctor")
+        st.markdown("---")
         
-        except Exception as e:
-            st.error(f"An error occurred during the medical workflow: {e}")
+        st.markdown("""
+        AgenticMD is an advanced AI-powered medical consultation system that leverages multiple specialized AI agents 
+        to provide comprehensive medical assistance. Powered by Bread AI technology, it offers a sophisticated approach 
+        to virtual medical consultations.
+        """)
+        
+        # Add a centered image if it exists
+        try:
+            st.image("assets/agentic_md.png", use_column_width=True, caption="AgenticMD Interface")
+        except:
+            st.info("Interface preview image not available")
+        
+        st.markdown("## 🤖 Our AI Agents")
+        st.markdown("""
+        AgenticMD utilizes a team of specialized AI agents, each with unique roles in the medical consultation process:
+        """)
+        
+        # Create columns for agents
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("""
+            ### 1. History Taking Agent 📋
+            - Collects patient history using the OLDCARTS format
+            - Ensures comprehensive symptom documentation
+            - Asks relevant follow-up questions
+            
+            ### 2. Medical History Agent 🔍
+            - Compiles and structures medical history
+            - Identifies relevant past conditions
+            - Organizes patient information systematically
+            
+            ### 3. Assessment Agent 📊
+            - Analyzes symptoms and medical history
+            - Provides comprehensive medical assessments
+            - Identifies potential health concerns
+            
+            ### 4. Treatment Agent 💊
+            - Develops evidence-based treatment plans
+            - Considers patient history and current conditions
+            - Provides comprehensive care recommendations
+            """)
+        
+        with col2:
+            st.markdown("""
+            ### 5. Prescription Agent 📝
+            - Generates detailed prescriptions
+            - Ensures medication safety and compatibility
+            - Provides dosage and usage instructions
+            
+            ### 6. Summary Agent 📄
+            - Formats prescriptions in standard Rx format
+            - Summarizes consultation findings
+            - Creates organized medical documentation
+            
+            ### 7. PDF Generation Agent 📑
+            - Creates professional prescription documents
+            - Formats medical reports
+            - Generates printable consultation summaries
+            """)
+        
+        # Privacy section with expander
+        with st.expander("🔒 Privacy & Security", expanded=True):
+            st.markdown("""
+            - All consultations are processed securely
+            - No personal health information is stored
+            - Requires API key for access
+            """)
+        
+        # Disclaimer in warning box
+        st.warning("""
+        ### ⚠️ Disclaimer
+        
+        AgenticMD is an AI assistant tool and should not replace professional medical advice. 
+        Always consult with a qualified healthcare provider for medical decisions.
+        """)
+        
+        # Footer
+        st.markdown("---")
+        st.markdown("""
+        <div style='text-align: center; color: #666666; padding: 20px;'>
+            Powered by Bread AI | Built with ❤️ for better healthcare
+        </div>
+        """, unsafe_allow_html=True)
 
 def complete_medical_workflow(initial_results):
     """Complete the remaining steps of the medical workflow after history taking"""
