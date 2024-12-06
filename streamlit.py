@@ -1,11 +1,21 @@
 import streamlit as st
 import os
 import sys
+from swarm import Agent, Swarm
+from openai import OpenAI
 import tempfile
 from datetime import datetime
+# from openai import OpenAI as OpenAIClient
 
 # Add the directory containing the original script to Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+def initialize_clients(api_key):
+    """Initialize OpenAI and Swarm clients with API key"""
+    os.environ['OPENAI_API_KEY'] = api_key
+    api = OpenAI(api_key=api_key)
+    client = Swarm(api)
+    return api, client
 
 # Add better error handling for imports
 try:
@@ -18,7 +28,8 @@ try:
         prescription_agent, 
         summary_agent,
         pdf_generation_agent,
-        generate_prescription_pdf
+        generate_prescription_pdf,
+        Swarm
     )
 except ImportError as e:
     st.error(f"Failed to import required modules from swarm_med: {e}")
@@ -201,11 +212,69 @@ def handle_history_taking():
         st.session_state.workflow_results = {'history': final_history}
         st.rerun()
 
+def initialize_agents(client):
+    """Initialize all agents with the Swarm client"""
+    global history_agent, medical_history_agent, assessment_agent, treatment_agent, prescription_agent, summary_agent
+    
+    # Reinitialize each agent with the new client
+    history_agent = Agent(
+        name="History Taking Agent",
+        instructions="...",  # Your existing instructions
+        model="gpt-4o-mini",
+        client=client
+    )
+    
+    medical_history_agent = Agent(
+        name="Medical History Agent",
+        instructions="...",  # Your existing instructions
+        model="gpt-4o-mini",
+        client=client
+    )
+    
+    assessment_agent = Agent(
+        name="Assessment Agent",
+        instructions="...",  # Your existing instructions
+        model="gpt-4o-mini",
+        client=client
+    )
+    
+    treatment_agent = Agent(
+        name="Treatment Agent",
+        instructions="...",  # Your existing instructions
+        model="gpt-4o-mini",
+        client=client
+    )
+    
+    prescription_agent = Agent(
+        name="Prescription Agent",
+        instructions="...",  # Your existing instructions
+        model="gpt-4o-mini",
+        client=client
+    )
+    
+    summary_agent = Agent(
+        name="Summary Agent",
+        instructions="...",  # Your existing instructions
+        model="gpt-4o-mini",
+        client=client
+    )
+
+def initialize_clients(api_key):
+    """Initialize OpenAI and Swarm clients with API key"""
+    os.environ['OPENAI_API_KEY'] = api_key
+    api = OpenAI(api_key=api_key)
+    client = Swarm(api)
+    # Initialize agents with the new client
+    initialize_agents(client)
+    return api, client
+
 def main():
     st.set_page_config(page_title="AI Medical Workflow Assistant", page_icon="🩺", layout="wide")
     
-    # Verify agents are properly loaded
-    verify_agents()
+    # Initialize session state for API clients
+    if 'openai_api' not in st.session_state or 'swarm_client' not in st.session_state:
+        st.session_state.openai_api = None
+        st.session_state.swarm_client = None
     
     # Sidebar
     with st.sidebar:
@@ -224,22 +293,22 @@ def main():
             "Enter OpenAI API Key",
             type="password",
             help="Required for accessing the AI medical assistant",
-            key="openai_api_key"
+            key="openai_api_key_input"
         )
+        
         if api_key:
-            os.environ["OPENAI_API_KEY"] = api_key
-        
-        st.divider()
-        st.subheader("🔒 Disclaimer")
-        st.write("""
-        This is an AI assistant and should not replace professional medical advice. 
-        Always consult with a qualified healthcare provider for medical decisions.
-        """)
-        
-        st.divider()
-        if st.button("Clear Conversation"):
-            st.session_state.clear()
-            st.rerun()
+            try:
+                # Initialize clients and agents
+                api, client = initialize_clients(api_key)
+                st.session_state.openai_api = api
+                st.session_state.swarm_client = client
+                st.sidebar.success("API key successfully configured!")
+            except Exception as e:
+                st.sidebar.error(f"Error initializing with API key: {str(e)}")
+                st.stop()
+        else:
+            st.sidebar.warning("Please enter your OpenAI API key to continue.")
+            st.stop()
 
     st.title("🩺 AgenticMD")
     
@@ -252,24 +321,24 @@ def main():
     
     # Initial input form with structured questions
     if not st.session_state.workflow_started:
-        if not api_key:
+        if not st.session_state.openai_api:
             st.error("Please enter your OpenAI API key in the sidebar to continue.")
         else:
+            # Create a single form that contains all inputs
             with st.form(key="patient_info_form", clear_on_submit=False):
                 st.write("📋 Symptom Information")
                 
+                # All form inputs must be inside the form
                 main_complaint = st.text_input(
                     "What is your main symptom?",
                     placeholder="Example: headache, chest pain, dizziness...",
-                    key="main_symptom",
-                    on_change=None  # Disable automatic submission on Enter
+                    key="main_symptom"
                 )
                 
                 duration = st.text_input(
                     "How long have you been experiencing this?",
                     placeholder="Example: 2 days, 1 week, several months...",
-                    key="duration",
-                    on_change=None
+                    key="duration"
                 )
                 
                 severity = st.slider(
@@ -294,18 +363,18 @@ def main():
                     key="medical_history"
                 )
                 
-                # Submit button at bottom of form
-                submit_button = st.form_submit_button(
+                # The form submit button must be the last element in the form
+                submitted = st.form_submit_button(
                     "Start Medical Consultation",
-                    use_container_width=True  # Make button full width
+                    use_container_width=True,
+                    type="primary"  # Makes the button more prominent
                 )
                 
-                # Only process form when button is clicked
-                if submit_button:
+                # Only process the form when the submit button is clicked
+                if submitted:
                     if not main_complaint:
                         st.error("Please describe your main symptom.")
                     else:
-                        # Format the collected information
                         patient_conversation = f"""
                         Main Symptom: {main_complaint}
                         Duration: {duration}
