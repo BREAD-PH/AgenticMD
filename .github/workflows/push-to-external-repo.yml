@@ -9,6 +9,11 @@ jobs:
     steps:
       - name: checkout repository
         uses: actions/checkout@v3
+      - name: Configure Git
+        run: |
+          COMMIT_AUTHOR=$(git log -1 --pretty=format:'%an')
+          git config --global user.email "niccoreyes@gmail.com"
+          git config --global user.name "$COMMIT_AUTHOR via GitHub Actions"
       - name: push to external repository
         uses: peaceiris/actions-gh-pages@v3
         with:
