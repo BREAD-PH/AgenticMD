@@ -152,7 +152,7 @@ Click "Save".
 Create a new GitHub Action workflow in your source repository by adding a YAML file in the .github/workflows directory. Name the file push-to-external-repo.yml and paste the following content:
 
 .github/workflows/push-to-external-repo.yml
-```
+```yaml
 name: (main) push to external repo
 on:
   push:
@@ -164,6 +164,11 @@ jobs:
     steps:
       - name: checkout repository
         uses: actions/checkout@v3
+      - name: Configure Git
+        run: |
+          COMMIT_AUTHOR=$(git log -1 --pretty=format:'%an')
+          git config --global user.email "niccoreyes@gmail.com"
+          git config --global user.name "$COMMIT_AUTHOR via GitHub Actions"
       - name: push to external repository
         uses: peaceiris/actions-gh-pages@v3
         with:
@@ -173,7 +178,13 @@ jobs:
           publish_branch: main
           allow_empty_commit: true
 ```
-Replace ```<your-username>``` with your GitHub username and ```<destination-repo-name>``` with the name of the external repository in your personal account. This action will copy everything from your organization's repository to your personal repository, including your GitHub Action workflows, so follow Step 4 to disable GitHub Actions on the destination repository.
+
+Important notes about the workflow:
+1. The workflow preserves the original commit author's identity while ensuring Vercel deployment compatibility
+2. Git commits will be attributed as "[Original Author] via GitHub Actions"
+3. The email is set to match the Vercel account owner's email to prevent deployment access issues
+4. Replace `niccoreyes@gmail.com` with your Vercel account email if different
+5. Replace `<your-username>` with your GitHub username and `<destination-repo-name>` with the name of the external repository
 
 ## Step 6: Run your workflow
 Push something to your main branch and see it be pushed to your ```<your-username>/<destination-repo-name>``` repository.
