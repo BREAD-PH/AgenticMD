@@ -10,3 +10,4 @@ tiktoken==0.6.0
 langchain-openai>=0.0.2
 ipywidgets>=8.0.0
 streamlit==1.30.0
+PyMuPDF==1.23.8
