@@ -10,8 +10,8 @@ from datetime import datetime
 from reportlab.lib.enums import TA_LEFT, TA_CENTER
 from reportlab.lib.colors import black
 
-os.environ['OPENAI_API_KEY'] = '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'
-api = OpenAI(api_key="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")
+os.environ['OPENAI_API_KEY'] = ''
+api = OpenAI(api_key="")
 
 client = Swarm(api)
 
